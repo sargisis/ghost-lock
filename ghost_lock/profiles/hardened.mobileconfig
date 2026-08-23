@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  ghost-lock :: Hardened Restrictions
+  Ужесточающие ограничения поверх Lockdown Mode.
+
+  ВАЖНО: часть ключей iOS применяет только на устройствах «Под контролем»
+  (Supervised). Без супервизии они просто игнорируются системой - это не
+  ломает профиль. Пометки [SUP] ниже означают «требует супервизии».
+-->
+<dict>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>PayloadType</key>
+      <string>com.apple.applicationaccess</string>
+
+      <!-- Не отправлять диагностику Apple -->
+      <key>allowDiagnosticSubmission</key>
+      <false/>
+      <!-- Запретить переопределение настроек диагностики -->
+      <key>forceDiagnosticSubmissionRestriction</key>
+      <true/>
+
+      <!-- Шифрованные резервные копии обязательны [SUP] -->
+      <key>forceEncryptedBackup</key>
+      <true/>
+
+      <!-- Не доверять новым сертификатам CA вручную -->
+      <key>allowUntrustedTLSPrompt</key>
+      <false/>
+
+      <!-- Откл. автозаполнение пароль Safari (укрепление против фишинга) -->
+      <key>allowAutoFill</key>
+      <false/>
+
+      <!-- Максимальная защита: откл. синк фото через iCloud [SUP] -->
+      <key>allowCloudPhotoLibrary</key>
+      <false/>
+      <!-- Максимальная защита: откл. синк документов iCloud Drive [SUP] -->
+      <key>allowCloudDocumentSync</key>
+      <false/>
+      <!-- Запрет локального стирания устройства (анти-кража) [SUP] -->
+      <key>allowEraseContentAndSettings</key>
+      <false/>
+
+      <!-- Явный контент (18+) - откл. -->
+      <key>allowExplicitContent</key>
+      <false/>
+
+      <!-- Запрет добавления новых почтовых аккаунтов злоумышленником [SUP] -->
+      <key>allowAccountModification</key>
+      <false/>
+
+      <key>PayloadDisplayName</key>
+      <string>ghost-lock Restrictions</string>
+      <key>PayloadIdentifier</key>
+      <string>cc.ghostlock.restrictions</string>
+      <key>PayloadUUID</key>
+      <string>af445994-6f0f-49b2-93c2-5bf0375e1f1e</string>
+      <key>PayloadVersion</key>
+      <integer>1</integer>
+    </dict>
+  </array>
+  <key>PayloadDescription</key>
+  <string>ghost-lock: ужесточающие ограничения поверх Lockdown Mode. Часть ключей применяется только в режиме «Под контролем».</string>
+  <key>PayloadDisplayName</key>
+  <string>ghost-lock Hardened</string>
+  <key>PayloadIdentifier</key>
+  <string>cc.ghostlock.hardened.profile</string>
+  <key>PayloadOrganization</key>
+  <string>ghost-lock</string>
+  <key>PayloadRemovalDisallowed</key>
+  <false/>
+  <key>PayloadType</key>
+  <string>Configuration</string>
+  <key>PayloadUUID</key>
+  <string>42ea07d8-e5c3-403a-acdc-f51539105ffa</string>
+  <key>PayloadVersion</key>
+  <integer>1</integer>
+</dict>
+</plist>

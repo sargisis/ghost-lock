@@ -1,0 +1,3 @@
+# ghost-lock: авто-аудит при подключении iPhone по USB
+# vendor 05ac = Apple, product "iPhone"
+ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="05ac", ATTRS{product}=="iPhone", RUN+="/usr/local/bin/ghost-lock-watch.sh"

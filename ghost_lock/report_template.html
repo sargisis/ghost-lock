@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>ghost-lock отчёт</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    background: #0b0f14; color: #d7dde3;
+    font: 15px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0; padding: 2rem;
+  }
+  main { max-width: 1080px; margin: 0 auto; }
+  h1 { font-weight: 700; letter-spacing: .5px; }
+  h1 span { color: #6ee7a8; }
+  .badge {
+    display: inline-block; padding: .35em 1em; border-radius: 999px;
+    font-weight: 700; font-size: 1.05rem; margin: .5rem 0 1.5rem;
+  }
+  .clean      { background: rgba(110,231,168,.12); color: #6ee7a8; border: 1px solid #2c5e44; }
+  .suspicious { background: rgba(250,204,21,.10);  color: #facc15; border: 1px solid #71650f; }
+  .critical   { background: rgba(248,113,113,.12); color: #f87171; border: 1px solid #7f2f2f; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0 2rem; font-size: .92rem; }
+  th, td { text-align: left; padding: .55rem .7rem; border-bottom: 1px solid #1d2733; vertical-align: top; }
+  th { color: #8fa1b3; font-weight: 600; text-transform: uppercase; font-size: .75rem; letter-spacing: .06em; }
+  tr:hover td { background: #101720; }
+  .ctx { color: #93a4b5; font-family: ui-monospace, monospace; font-size: .82rem; word-break: break-all; }
+  .muted { color: #66788a; }
+  section { margin-bottom: 2.5rem; }
+  ol li { margin: .45rem 0; }
+  code { background: #131c26; padding: .15em .45em; border-radius: 6px; font-size: .9em; }
+  footer { color: #66788a; font-size: .85rem; margin-top: 3rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1><span>&#128065;&#160;</span>ghost-lock // аудит устройства</h1>
+  <div class="badge {{VERDICT_CLASS}}">{{VERDICT}} &nbsp;&middot;&nbsp; score {{SCORE}}</div>
+
+  <section>
+    <h2>Устройство</h2>
+    <table>
+      <tr><th style="width:32%">Параметр</th><th>Значение</th></tr>
+      {{DEVICE_ROWS}}
+    </table>
+  </section>
+
+  <section>
+    <h2>Находки ({{FINDINGS_COUNT}})</h2>
+    <p class="muted">Просканировано файлов логов: {{FILES_SCANNED}}. База IOC: {{IOC_META}}.</p>
+    <table>
+      <tr><th>Тип</th><th>Индикатор</th><th>Вес</th><th>Где</th><th>Контекст</th><th>Источник</th></tr>
+      {{FINDINGS_ROWS}}
+    </table>
+  </section>
+
+  <section>
+    <h2>Рекомендации</h2>
+    <ol>
+      {{RECOMMENDATIONS}}
+    </ol>
+  </section>
+
+  <footer>
+    ghost-lock v1.0 &middot; сгенерировано {{TIMESTAMP}}<br>
+    Отчёт локальный, никуда не отправляется. База IOC требует регулярного обновления из официальных фидов
+    (AmnestyTech/investigations, mvt.re, Citizen Lab).
+  </footer>
+</main>
+</body>
+</html>

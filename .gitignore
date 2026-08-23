@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+go/bin/
+*.html
+!ghost_lock/report_template.html

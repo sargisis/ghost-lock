@@ -119,7 +119,7 @@ func BenchmarkScan1MB(b *testing.B) {
 	db, _ := ioc.Load(dbPath)
 	sc, _ := New(db)
 	text := string(make([]byte, 1<<20))
-	
+
 	for b.Loop() {
 		sc.scanText(text, "bench")
 	}

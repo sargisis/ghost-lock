@@ -1,4 +1,7 @@
-"""Тесты diagnostics: фильтрация логов, статистика, экспорт с мок-сабпроцессом."""
+"""Тесты diagnostics: фильтрация логов, статистика, экспорт с мок-сабпроцессом.
+
+diagnostics tests: log filtering, stats, export with mocked subprocess.
+"""
 
 import sys
 import tempfile

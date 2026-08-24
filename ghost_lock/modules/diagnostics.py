@@ -1,8 +1,14 @@
 """Выгрузка диагностических логов (краш-репортов) с устройства.
 
-Краш-логи - основной публичный источник артефактов шпионского ПО
-(методика Amnesty MVT): импланты иногда роняют процессы, оставляя следы.
-"""
+    Краш-логи - основной публичный источник артефактов шпионского ПО
+    (методика Amnesty MVT): импланты иногда роняют процессы, оставляя следы.
+
+    Export of diagnostic logs (crash reports) from the device.
+
+    Crash logs are the main publicly available source of spyware artifacts
+    (the Amnesty MVT methodology): implants occasionally crash processes,
+    leaving traces behind.
+    """
 
 from __future__ import annotations
 
@@ -20,6 +26,11 @@ def export_crash_logs(udid: str, timeout: int = 90) -> tuple[Path, int]:
 
     Возвращает (папка, число файлов). При зависании/ошибке экспорта не падаем:
     логи копятся инкрементально, работаем с тем, что уже скачано.
+
+    Exports crash logs to ~/.local/share/ghost-lock/crash_logs/<udid>.
+
+    Returns (folder, file count). Never hard-fails on export hangs/errors:
+    logs accumulate incrementally, so we work with whatever is downloaded.
     """
     dest = config.CRASH_DIR / udid
     dest.mkdir(parents=True, exist_ok=True)
@@ -43,14 +54,17 @@ def export_crash_logs(udid: str, timeout: int = 90) -> tuple[Path, int]:
 
 
 def collect_log_files(crash_dir: Path) -> list[Path]:
-    """Все текстовые логи, пригодные для сканирования."""
+    """Все текстовые логи, пригодные для сканирования.
+
+        All text logs suitable for scanning.
+        """
     files: list[Path] = []
     for f in sorted(crash_dir.rglob("*")):
         if not f.is_file():
             continue
         try:
             if f.stat().st_size > config.MAX_SCAN_FILE_BYTES:
-                continue  # слишком большой блоб — пропускаем
+                continue  # слишком большой блоб — пропускаем / oversized blob, skip
         except OSError:
             continue
         if f.suffix in CRASH_EXTENSIONS or f.suffix == "":
@@ -63,7 +77,10 @@ def collect_log_files(crash_dir: Path) -> list[Path]:
 
 
 def log_stats(crash_dir: Path) -> dict[str, int]:
-    """Статистика выгрузки для отчёта."""
+    """Статистика выгрузки для отчёта.
+
+        Export statistics for the report.
+        """
     stats = {"total": 0, "by_type": {}}
     for f in crash_dir.rglob("*"):
         if f.is_file():

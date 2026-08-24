@@ -1,4 +1,5 @@
 """Тесты чека гигиены (PasswordProtected и честные «не читается»)."""
+# (EN) Hygiene-check tests (PasswordProtected and honest "not readable" marks).
 
 import sys
 import unittest
@@ -13,7 +14,11 @@ from ghost_lock.modules import hygiene  # noqa: E402
 class TestHygiene(unittest.TestCase):
     def test_false_passcode_is_unknown_not_accomplice(self):
         """PasswordProtected=false доказанно врёт на iOS 27 (пароль включён).
-        Трактуем как «не читается», НИКОГДА как «выключен»."""
+        Трактуем как «не читается», НИКОГДА как «выключен».
+
+        PasswordProtected=false demonstrably lies on iOS 27 (passcode enabled).
+        Treated as "not readable", NEVER as "disabled".
+        """
         checks = hygiene.check_hygiene({"PasswordProtected": "false"})
         pc = next(c for c in checks if c.key == "passcode")
         self.assertIsNone(pc.ok)

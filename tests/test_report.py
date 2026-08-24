@@ -1,4 +1,7 @@
-"""Тесты отчёта: подстановка плейсхолдеров, экранирование, таблицы."""
+"""Тесты отчёта: подстановка плейсхолдеров, экранирование, таблицы.
+
+Report tests: placeholder substitution, escaping, tables.
+"""
 
 import sys
 import tempfile

@@ -3,6 +3,12 @@
 `ideviceinstaller list` отдаёт строки вида:
   cc.ghostlock.app - GhostLock 1.0
 Парсер терпим к вариациям формата (разные версии утилиты).
+
+Installed-app scan: hunting spyware / stalkerware.
+
+`ideviceinstaller list` emits lines like:
+  cc.ghostlock.app - GhostLock 1.0
+The parser tolerates format variations across utility versions.
 """
 
 from __future__ import annotations
@@ -43,12 +49,17 @@ def _run_installer(udid: str) -> str:
 
 _APP_RE = re.compile(r"^\s*([A-Za-z0-9.\-]+)\s*[-–]\s*(.+?)\s*$")
 # ideviceinstaller (новые версии) отдаёт CSV: bundle, "версия", "имя"
+# newer ideviceinstaller emits CSV: bundle, "version", "name"
 _CSV_RE = re.compile(r'^\s*([A-Za-z0-9.\-]+),\s*"([^"]*)",\s*"([^"]*)"\s*$')
 
 
 def parse_app_list(output: str) -> list[InstalledApp]:
     """Понимает оба формата ideviceinstaller:
     старый:  cc.app - Name (1.2)
+    CSV:     cc.app, "1.2", "Name"
+
+    Understands both ideviceinstaller formats:
+    legacy:  cc.app - Name (1.2)
     CSV:     cc.app, "1.2", "Name"
     """
     apps: list[InstalledApp] = []
@@ -82,6 +93,11 @@ def scan_apps(iocs: dict, apps: list[InstalledApp]) -> list[Finding]:
 
     Паттерны без точки в конце матчатся как подстрока в любом месте
     bundle-id ИЛИ имени приложения.
+
+    Matches bundle IDs and app names against the spyware_bundles section.
+
+    Patterns without a trailing dot are matched as a substring anywhere in
+    the bundle-id OR the app name.
     """
     findings: list[Finding] = []
     for ioc in iocs.get("spyware_bundles", []):
@@ -99,5 +115,5 @@ def scan_apps(iocs: dict, apps: list[InstalledApp]) -> list[Finding]:
                     location=f"installed_app:{app.bundle_id}",
                     context=f"{app.name} v{app.version or '?'}",
                 ))
-                break  # одно совпадение на IOC достаточно
+                break  # одно совпадение на IOC достаточно / one match per IOC is enough
     return findings

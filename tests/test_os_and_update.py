@@ -1,4 +1,7 @@
-"""Тесты проверки версии iOS. Обновление IOC тестируется в test_ioc_stix.py."""
+"""Тесты проверки версии iOS. Обновление IOC тестируется в test_ioc_stix.py.
+
+iOS version check tests. IOC updates are covered in test_ioc_stix.py.
+"""
 
 import json
 import sys

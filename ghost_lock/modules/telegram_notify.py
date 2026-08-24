@@ -8,6 +8,17 @@
 Токен лежит в ~/.config/ghost-lock/telegram.json с правами 600,
 в репозиторий не попадает. Любая ошибка сети — просто warning в лог,
 аудит никогда не падает из-за уведомлений.
+
+Telegram alerts: a message after every audit.
+
+Setup (once, no Apple Developer account):
+  1. Message @BotFather on Telegram -> /newbot -> get a token.
+  2. python3 ghost_lock/ghost_lock.py setup-telegram --token <TOKEN>
+  3. Send the bot any word — the script catches the chat_id and sends a test.
+
+The token lives in ~/.config/ghost-lock/telegram.json with 600 perms,
+never enters the repository. Any network error is just a log warning;
+the audit never fails because of notifications.
 """
 
 from __future__ import annotations
@@ -70,13 +81,16 @@ def _call(token: str, method: str, params: dict[str, Any] | None = None,
 
 
 def get_updates(token: str, timeout: int = 30) -> list[dict[str, Any]]:
-    """Последние апдейты бота — из них достаём chat_id."""
+    """Последние апдейты бота — из них достаём chat_id.
+
+    Latest bot updates — the source for the chat_id.
+    """
     res = _call(token, "getUpdates", {"timeout": timeout - 5}, timeout=timeout + 5)
     return res if isinstance(res, list) else []
 
 
 def extract_chat_id(updates: list[dict[str, Any]]) -> int | None:
-    for upd in reversed(updates):  # свежее сообщение приоритетнее
+    for upd in reversed(updates):  # свежее сообщение приоритетнее / newest message wins
         msg = upd.get("message") or upd.get("edited_message") or {}
         chat = msg.get("chat") or {}
         cid = chat.get("id")
@@ -128,7 +142,10 @@ def format_audit(verdict_en: str, verdict_ru: str, score: int,
 def notify_audit(*, verdict_en: str, verdict_ru: str, score: int, device: str,
                  files_scanned: int, findings_top: list[tuple[int, str, str]],
                  report_path: str, extra_lines: list[str] | None = None) -> bool:
-    """Шлёт алерт. Тихо возвращает False если не настроено/нет сети."""
+    """Шлёт алерт. Тихо возвращает False если не настроено/нет сети.
+
+    Sends an alert. Quietly returns False when unconfigured or offline.
+    """
     try:
         text = format_audit(
             verdict_en, verdict_ru, score, device, files_scanned,

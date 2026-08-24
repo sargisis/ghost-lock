@@ -4,6 +4,13 @@
   • ServerFallback — обычные IP того же фильтрующего вендора: если DoH
     недоступен, iOS продолжит резолвить через plain-DNS с той же политикой.
   • ProhibitDisablement = false — щит всегда можно выключить в настройках.
+
+DNS profile generator (dns_shield.mobileconfig) built from a preset.
+
+Follows the core principle of "never break the internet":
+  • ServerFallback — plain-DNS IPs from the same filtering vendor: if DoH is
+    unreachable, iOS keeps resolving via plain DNS with the same policy.
+  • ProhibitDisablement = false — the shield can always be toggled off in Settings.
 """
 
 from __future__ import annotations
@@ -13,6 +20,7 @@ from pathlib import Path
 from .. import config
 
 # Фиксированные UUID: стабильны между перегенерациями, iOS считает профиль тем же.
+# Fixed UUIDs: stable across regenerations so iOS treats it as the same profile.
 PAYLOAD_UUID_DNS = "fc4fdd46-8662-42c1-aa22-e4637bcb2fcf"
 PROFILE_UUID = "5285d060-b4a6-4801-a404-9b673a40dcaf"
 
@@ -141,14 +149,18 @@ def generate(preset_name: str | None = None, nextdns_id: str | None = None,
 
 
 # ── Web Content Filter: блокировка доменов шпионов на уровне WebKit ─────────
+# ── Web Content Filter: blocking spyware domains at the WebKit level ────────
 
 # Фиксированные UUID для стабильности профиля между перегенерациями
+# Fixed UUIDs to keep the profile stable across regenerations
 PAYLOAD_UUID_WCF = "7e1a2c55-9f0b-4d3a-b8c1-2a6f5e4d9c11"
 PROFILE_UUID_WCF = "3b9d8f02-51c7-4e88-a2d4-90c6f1b7e34a"
 # Обязателен на несупервизируемых устройствах (iOS 16+)
+# Required on unsupervised devices (iOS 16+)
 CONTENT_FILTER_UUID_WCF = "a1e5f7c2-4b3d-4e8f-9c6a-7d2b1e0f8a44"
 
 # Лимит разумного размера: тысячи доменов тормозят фильтр без пользы
+# Sanity size limit: thousands of entries slow the filter for no real gain
 WCF_MAX_DOMAINS = 500
 
 
@@ -157,7 +169,11 @@ def _esc(s: str) -> str:
 
 
 def select_wcf_domains(iocs: dict, cap: int = WCF_MAX_DOMAINS) -> list[str]:
-    """Топ C2-доменов по весу, без allowlist-ложняков, отсортирован, уникален."""
+    """Топ C2-доменов по весу, без allowlist-ложняков, отсортирован, уникален.
+
+    Top C2 domains ranked by weight: allowlist false positives excluded,
+    sorted and deduplicated.
+    """
     import re as _re
     allow = [_re.compile(p) for p in iocs.get("allowlist", []) if isinstance(p, str)]
     seen: dict[str, int] = {}
@@ -171,6 +187,7 @@ def select_wcf_domains(iocs: dict, cap: int = WCF_MAX_DOMAINS) -> list[str]:
         if any(rx.search(value) for rx in allow):
             continue
         # максимум по домену, если он встречается в нескольких секциях/фидах
+        # keep the max weight per domain when it appears in several sections/feeds
         seen[value] = max(seen.get(value, 0), weight)
     ranked = sorted(seen.items(), key=lambda kv: (-kv[1], kv[0]))
     return [d for d, _ in ranked[:cap]]
@@ -245,7 +262,10 @@ def render_wcf_profile(domains: list[str]) -> str:
 
 def generate_wcf(dest: Path | None = None, cap: int = WCF_MAX_DOMAINS,
                  ioc_path: Path | None = None) -> Path:
-    """Собирает web_filter.mobileconfig из актуальной базы IOC."""
+    """Собирает web_filter.mobileconfig из актуальной базы IOC.
+
+    Builds web_filter.mobileconfig from the current IOC database.
+    """
     import json
     path = ioc_path or config.IOC_PATH
     with open(path, encoding="utf-8") as fh:

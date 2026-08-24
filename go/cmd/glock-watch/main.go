@@ -1,3 +1,8 @@
+// glock-watch: демон, слушающий netlink uevent и запускающий аудит
+// при подключении айфона.
+//
+// glock-watch: daemon listening to netlink uevents that triggers an audit
+// whenever an iPhone is connected.
 package main
 
 import (
@@ -15,6 +20,9 @@ import (
 	"glock/internal/watch"
 )
 
+// openUeventSocket открывает RAW netlink-сокет группы uevent.
+//
+// openUeventSocket opens a raw netlink socket in the uevent group.
 func openUeventSocket() (*os.File, error) {
 	fd, err := syscall.Socket(
 		syscall.AF_NETLINK,
@@ -35,6 +43,9 @@ func openUeventSocket() (*os.File, error) {
 	return os.NewFile(uintptr(fd), "netlink-uevent"), nil
 }
 
+// extractEvent вырезает полезную часть буфера и парсит её в Event.
+//
+// extractEvent trims the useful part of the buffer and parses it into an Event.
 func extractEvent(buf []byte) watch.Event {
 	if i := indexBytes(buf, []byte("ACTION@")); i >= 0 {
 		buf = buf[i:]
@@ -49,10 +60,10 @@ func indexBytes(b, sep []byte) int {
 }
 
 func main() {
-	execCmd := flag.String("exec", "", "команда запуска при подключении айфона")
-	cooldown := flag.Duration("cooldown", 90*time.Second, "минимальный интервал между аудитами")
-	settle := flag.Duration("settle", 5*time.Second, "пауза после подключения перед запуском")
-	testEvent := flag.Bool("test-event", false, "инъектировать фейковое событие iPhone для проверки цепочки")
+	execCmd := flag.String("exec", "", "команда запуска при подключении айфона / command to run when an iPhone is connected")
+	cooldown := flag.Duration("cooldown", 90*time.Second, "минимальный интервал между аудитами / minimum interval between audits")
+	settle := flag.Duration("settle", 5*time.Second, "пауза после подключения перед запуском / delay after connect before running")
+	testEvent := flag.Bool("test-event", false, "инъектировать фейковое событие iPhone для проверки цепочки / inject a fake iPhone event to test the chain")
 	flag.Parse()
 
 	if *execCmd == "" {

@@ -1,4 +1,7 @@
-"""Тесты фишинг-щита: извлечение URL, эвристики, краевые случаи."""
+"""Тесты фишинг-щита: извлечение URL, эвристики, краевые случаи.
+
+Phishing-shield tests: URL extraction, heuristics, edge cases.
+"""
 
 import sys
 import unittest

@@ -7,6 +7,16 @@
 
 Бэкап НЕ зашифрован (пользовательский пароль бэкапа мы не знаем) — зато
 он лежит локально в ~/.local/share/ghost-lock/backups/.
+
+Deep forensic mode: full backup via idevicebackup2 + scan of everything.
+
+The regular audit only looks at crash logs (~hundreds of files). A full
+backup covers SMS databases, Safari history, network stats, app snapshots:
+tens of thousands of files. Slow at first (dozens of minutes; fast and
+incremental afterwards) but this is real forensics level.
+
+The backup is NOT encrypted (we do not know the user backup password) —
+but it stays local in ~/.local/share/ghost-lock/backups/.
 """
 
 from __future__ import annotations
@@ -18,7 +28,7 @@ from typing import Any
 
 from .spyware_scan import ScanResult
 
-BACKUP_TIMEOUT = 3600  # час на полный бэкап
+BACKUP_TIMEOUT = 3600  # час на полный бэкап / one hour for a full backup
 BACKUPS_DIR = Path.home() / ".local" / "share" / "ghost-lock" / "backups"
 
 
@@ -42,7 +52,10 @@ def _run_backup(udid: str, dest_dir: Path) -> tuple[bool, str]:
 
 
 def run(udid: str, info: dict[str, Any]) -> ScanResult:
-    """Полный бэкап + IOC-скан. Возвращает отдельный ScanResult."""
+    """Полный бэкап + IOC-скан. Возвращает отдельный ScanResult.
+
+    Full backup + IOC scan. Returns a separate ScanResult.
+    """
     from .spyware_scan import run_scan
 
     started = time.monotonic()

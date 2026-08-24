@@ -2,6 +2,11 @@
 
 Устаревшая iOS = известные, уже пропатченные эксплойты остаются рабочими.
 Источник актуальных версий: публичный API api.ipsw.me (без ключей).
+
+iOS freshness check: compares the device version with the latest for its model.
+
+An outdated iOS means known, already-patched exploits remain usable.
+Latest versions come from the public api.ipsw.me API (no keys needed).
 """
 
 from __future__ import annotations
@@ -19,12 +24,15 @@ class OSStatus:
     product_type: str
     installed: str
     latest: str | None
-    outdated: bool | None  # None = не смогли проверить (нет сети)
+    outdated: bool | None  # None = не смогли проверить (нет сети) / unknown (no network)
     note: str = ""
 
 
 def fetch_latest_ios(product_type: str) -> str | None:
-    """Последняя подписанная версия iOS для модели, например 'iPhone15,2'."""
+    """Последняя подписанная версия iOS для модели, например 'iPhone15,2'.
+
+    Latest signed iOS version for a model identifier like 'iPhone15,2'.
+    """
     url = IPSW_API.format(product_type=product_type)
     req = urllib.request.Request(url, headers={"User-Agent": "ghost-lock/1.0"})
     try:

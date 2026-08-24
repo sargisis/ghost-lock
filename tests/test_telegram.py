@@ -1,4 +1,7 @@
-"""Тесты Telegram-алертов: форматирование, конфиг, устойчивость к сбоям."""
+"""Тесты Telegram-алертов: форматирование, конфиг, устойчивость к сбоям.
+
+Telegram-alert tests: formatting, config, resilience to failures.
+"""
 
 import json
 import sys

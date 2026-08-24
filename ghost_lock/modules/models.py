@@ -1,4 +1,7 @@
-"""Общие модели данных ghost-lock."""
+"""Общие модели данных ghost-lock.
+
+    Shared data models for ghost-lock.
+    """
 
 from __future__ import annotations
 

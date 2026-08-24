@@ -1,4 +1,7 @@
-"""Тесты IOC-сканера: сопоставление, allowlist, скоринг, дедупликация."""
+"""Тесты IOC-сканера: сопоставление, allowlist, скоринг, дедупликация.
+
+IOC-scanner tests: matching, allowlist, scoring, deduplication.
+"""
 
 import sys
 import unittest
@@ -192,7 +195,10 @@ class TestDedupe(unittest.TestCase):
 
 
 class TestLoadRealDatabase(unittest.TestCase):
-    """Тесты реальной базы indicators.json из репозитория."""
+    """Тесты реальной базы indicators.json из репозитория.
+
+    Tests against the real indicators.json database from the repository.
+    """
 
     @classmethod
     def setUpClass(cls):
@@ -234,11 +240,19 @@ class TestLoadRealDatabase(unittest.TestCase):
 
 
 class TestStixSections(unittest.TestCase):
-    """Секции из STIX-фидов: processes исключена из скана, emails/file_paths работают."""
+    """Секции из STIX-фидов: processes исключена из скана, emails/file_paths работают.
+
+    STIX-feed sections: "processes" excluded from scanning,
+    emails/file_paths do work.
+    """
 
     def test_processes_section_is_not_scanned(self):
         """STIX принёс общие имена демонов Apple (roleaccountd и др.) —
-        секция processes исключена, иначе шквал ложных срабатываний."""
+        секция processes исключена, иначе шквал ложных срабатываний.
+
+        STIX brought generic Apple daemon names (roleaccountd etc.) —
+        the processes section is excluded, otherwise a flood of false positives.
+        """
         from ghost_lock.modules import spyware_scan
         iocs = {
             "processes": [{"value": "roleaccountd", "weight": 6, "source": "stix"}],

@@ -1,4 +1,7 @@
-"""Интеграционные тесты: полный пайплайн сканера и CLI."""
+"""Интеграционные тесты: полный пайплайн сканера и CLI.
+
+Integration tests: full scanner pipeline and CLI.
+"""
 
 import json
 import subprocess

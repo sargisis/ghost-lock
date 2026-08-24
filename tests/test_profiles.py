@@ -1,4 +1,7 @@
-"""Тесты генератора DNS-профиля и валидность обоих .mobileconfig."""
+"""Тесты генератора DNS-профиля и валидность обоих .mobileconfig.
+
+DNS profile generator tests; validity of both .mobileconfig files.
+"""
 
 import plistlib
 import sys
@@ -85,7 +88,10 @@ class TestRenderedProfile(unittest.TestCase):
 
 
 class TestShippedProfilesValid(unittest.TestCase):
-    """Реальные файлы profiles/*.mobileconfig из репозитория."""
+    """Реальные файлы profiles/*.mobileconfig из репозитория.
+
+    The real profiles/*.mobileconfig files from the repository.
+    """
 
     def test_dns_shield_is_valid_plist(self):
         data = plistlib.load(open(config.DNS_SHIELD_PROFILE, "rb"))

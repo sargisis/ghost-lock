@@ -1,7 +1,11 @@
 """Обнаружение iPhone по USB и сбор информации об устройстве.
 
-Зависимости: libimobiledevice-utils (idevice_id, ideviceinfo).
-"""
+    Зависимости: libimobiledevice-utils (idevice_id, ideviceinfo).
+
+    iPhone detection over USB and device info gathering.
+
+    Requires: libimobiledevice-utils (idevice_id, ideviceinfo).
+    """
 
 from __future__ import annotations
 
@@ -42,19 +46,28 @@ def _run(args: list[str], timeout: int = 30) -> str:
 
 
 def list_devices() -> list[str]:
-    """Список UDID всех подключённых и спаренных устройств."""
+    """Список UDID всех подключённых и спаренных устройств.
+
+        UDIDs of all connected and paired devices.
+        """
     out = _run(["idevice_id", "-l"])
     return [u.strip() for u in out.splitlines() if u.strip()]
 
 
 def device_info(udid: str) -> dict[str, Any]:
-    """Полный plist ideviceinfo в виде словаря."""
+    """Полный plist ideviceinfo в виде словаря.
+
+        Full ideviceinfo plist as a dictionary.
+        """
     out = _run(["ideviceinfo", "-u", udid, "-x"])
     return dict(plistlib.loads(out.encode()))
 
 
 def summary(info: dict[str, Any]) -> list[tuple[str, str]]:
-    """Ключевые поля для отчёта."""
+    """Ключевые поля для отчёта.
+
+        Key fields selected for the report.
+        """
     keys = [
         ("DeviceName", "Имя устройства"),
         ("ProductType", "Модель"),

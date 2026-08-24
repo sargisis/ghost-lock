@@ -1,3 +1,6 @@
+// glock-scan: быстрый IOC-скан папки логов, результат — JSON в stdout.
+//
+// glock-scan: fast IOC scan of a log directory; prints JSON to stdout.
 package main
 
 import (
@@ -12,8 +15,8 @@ import (
 )
 
 func main() {
-	iocsPath := flag.String("iocs", "../ioc/indicators.json", "путь к indicators.json")
-	dir := flag.String("dir", "", "папка с логами для скана")
+	iocsPath := flag.String("iocs", "../ioc/indicators.json", "путь к indicators.json / path to indicators.json")
+	dir := flag.String("dir", "", "папка с логами для скана / folder with logs to scan")
 	flag.Parse()
 
 	if *dir == "" {

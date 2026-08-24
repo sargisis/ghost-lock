@@ -15,6 +15,22 @@ ghost-lock — аудит и укрепление iPhone поверх Lockdown M
   python3 ghost_lock/ghost_lock.py audit --udid <UDID>
   python3 ghost_lock/ghost_lock.py profiles    # как установить щит на телефон
   python3 ghost_lock/ghost_lock.py profiles --serve   # раздать профили по LAN
+
+  (EN) ghost-lock — iPhone audit & hardening on top of Lockdown Mode.
+
+  Jailbreak-free architecture:
+  • PC side: USB connection, crash-log export, spyware IOC scan
+    (Amnesty MVT methodology), HTML report.
+  • Phone: manually installed signed profiles — a persistent DoH DNS
+    shield (survives reboot) plus hard restrictions.
+
+  Usage:
+    doctor      # check the environment
+    devices     # list connected iPhones
+    audit       # full audit + report
+    audit --udid <UDID>
+    profiles    # how to install the shield on the phone
+    profiles --serve   # serve profiles over LAN
 """
 
 from __future__ import annotations
@@ -37,7 +53,7 @@ from ghost_lock.modules import connect, diagnostics, report as report_mod  # noq
 from ghost_lock.modules.spyware_scan import load_iocs, render_findings_table, run_scan  # noqa: E402
 
 
-# ── вывод ────────────────────────────────────────────────────────────────────
+# ── вывод / output ───────────────────────────────────────────────────────────
 def _c(code: str) -> "functools.partial[str]":
     return functools.partial(lambda c, s: f"\033[{c}m{s}\033[0m" if sys.stdout.isatty() else str(s), code)
 
@@ -73,7 +89,7 @@ def ok(msg: str) -> None:
     print(f"{green('[+]')} {msg}")
 
 
-# ── команды ──────────────────────────────────────────────────────────────────
+# ── команды / commands ───────────────────────────────────────────────────────
 def cmd_doctor(_args: argparse.Namespace) -> None:
     banner()
     problems = 0
@@ -171,6 +187,7 @@ def cmd_audit(args: argparse.Namespace) -> None:
     result = run_scan(info, crash_dir)
 
     # ── Deep-режим: полный бэкап + скан всего содержимого ──────────────────
+    # ── Deep mode: full backup + scan of all contents ──────────────────────
     if getattr(args, "deep", False):
         from ghost_lock.modules import deep_scan
         deep_result = deep_scan.run(udid, info)
@@ -442,7 +459,10 @@ def cmd_profiles(args: argparse.Namespace) -> None:
 
 
 def qr_url(url: str) -> None:
-    """QR-код, если установлен пакет qrcode (pip install qrcode)."""
+    """QR-код, если установлен пакет qrcode (pip install qrcode).
+
+    QR code, if the qrcode package is installed (pip install qrcode).
+    """
     try:
         import qrcode  # type: ignore
     except ImportError:
@@ -480,7 +500,7 @@ def cmd_update_ioc(_args: argparse.Namespace) -> None:
         die(f"База повреждена после обновления: {e}")
 
 
-# ── точка входа ──────────────────────────────────────────────────────────────
+# ── точка входа / entry point ────────────────────────────────────────────────
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="ghost-lock",

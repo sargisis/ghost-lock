@@ -1,4 +1,7 @@
-"""Тесты STIX-парсера и слияния индикаторов в базу."""
+"""Тесты STIX-парсера и слияния индикаторов в базу.
+
+STIX-parser tests and merging indicators into the database.
+"""
 
 import json
 import sys

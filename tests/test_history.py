@@ -1,4 +1,7 @@
-"""Тесты истории аудитов (SQLite) и diff «что изменилось»."""
+"""Тесты истории аудитов (SQLite) и diff «что изменилось».
+
+Audit-history (SQLite) tests and the "what changed" diff.
+"""
 
 import sys
 import tempfile

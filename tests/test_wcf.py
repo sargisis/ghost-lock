@@ -1,4 +1,7 @@
-"""Тесты Web Content Filter профиля (Spyware Domain Wall)."""
+"""Тесты Web Content Filter профиля (Spyware Domain Wall).
+
+Web Content Filter profile tests (Spyware Domain Wall).
+"""
 
 import plistlib
 import sys

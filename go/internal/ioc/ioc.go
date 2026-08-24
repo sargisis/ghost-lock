@@ -1,3 +1,6 @@
+// Package ioc: загрузка базы индикаторов и сборка поисковых игл.
+//
+// Package ioc: indicator database loading and search-needle building.
 package ioc
 
 import (
@@ -8,12 +11,18 @@ import (
 	"strings"
 )
 
+// Entry — один IOC из indicators.json.
+//
+// Entry — a single IOC from indicators.json.
 type Entry struct {
 	Value  string `json:"value"`
 	Weight int    `json:"weight"`
 	Source string `json:"source"`
 }
 
+// DB — база индикаторов по секциям + allowlist.
+//
+// DB — indicator database by section plus an allowlist.
 type DB struct {
 	Domains         []Entry  `json:"domains"`
 	Jailbreak       []Entry  `json:"jailbreak_artifacts"`
@@ -26,6 +35,9 @@ type DB struct {
 	Allowlist       []string `json:"allowlist"`
 }
 
+// Load читает и парсит indicators.json.
+//
+// Load reads and parses indicators.json.
 func Load(path string) (*DB, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -43,6 +55,9 @@ func normalize(e Entry) (string, bool) {
 	return v, v != ""
 }
 
+// Needle — готовая к поиску игла (нижний регистр, секция, word-boundary).
+//
+// Needle — a search-ready needle (lowercased, with section and word-boundary flag).
 type Needle struct {
 	Value     string
 	Entry     Entry
@@ -50,6 +65,11 @@ type Needle struct {
 	WordBound bool
 }
 
+// Needles собирает плоский список игл по сканируемым секциям,
+// отсортированный по длине убыв.
+//
+// Needles builds a flat needle list across scanned sections,
+// sorted by length descending.
 func (d *DB) Needles() []Needle {
 	type sec struct {
 		name string
@@ -64,6 +84,9 @@ func (d *DB) Needles() []Needle {
 		{"spyware_bundles", d.SpywareBundles, false},
 		// "processes" сознательно НЕ сканируем: общие имена демонов из
 		// чужих отчётов дают сотни ложных срабатываний в краш-логах iOS.
+		// "processes" is deliberately NOT scanned: generic daemon names from
+		// other platforms' reports cause hundreds of false positives in iOS
+		// crash logs.
 		{"emails", d.Emails, false},
 		{"file_paths", d.FilePaths, false},
 	}

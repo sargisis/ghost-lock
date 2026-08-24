@@ -1,4 +1,7 @@
-"""Генерация HTML-отчёта аудита."""
+"""Генерация HTML-отчёта аудита.
+
+HTML report generation for audits.
+"""
 
 from __future__ import annotations
 

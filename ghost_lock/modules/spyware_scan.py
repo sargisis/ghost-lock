@@ -1,7 +1,11 @@
 """IOC-сканер: сопоставляет выгруженные логи и инфо устройства с базой индикаторов.
 
-Методика вдохновлена Amnesty International MVT: краш-логи и системные
+Методика вдохновена Amnesty International MVT: краш-логи и системные
 артефакты ищутся на совпадения с публичными IOC шпионского ПО.
+
+IOC scanner: matches exported logs and device info against the indicator
+database. Methodology inspired by Amnesty International's MVT: crash logs
+and system artifacts are searched for matches against public spyware IOCs.
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ from .phishing_guard import heuristic_url_findings
 
 GO_BIN = config.REPO_ROOT / "go" / "bin" / "glock-scan"
 # Файлы, которые Python дочитывает сам для URL-эвристик поверх Go-скана.
+# Files that Python re-reads itself for URL heuristics on top of the Go scan.
 HEURISTIC_MAX_BYTES = 2_000_000
 
 
@@ -60,6 +65,7 @@ def _normalize(text: str) -> str:
 
 
 # Строки с word-boundary, чтобы не ловить «pegasus» внутри легитимных имён.
+# Strings matched with word boundaries so 'pegasus' inside legit names isn't caught.
 _WORDBOUND_TYPES = {"spyware_strings"}
 
 
@@ -74,12 +80,16 @@ def _allowlist(iocs: dict[str, Any]) -> list[re.Pattern[str]]:
 
 
 # Кэш плоского списка игл: сборка один раз на набор IOC.
+# Flat needle-list cache: built once per set of IOCs.
 _NEEDLE_CACHE: dict[tuple, list[tuple[str, dict, str, bool]]] = {}
 
 
 # Секции, участвующие в скане текстов. "processes" исключена намеренно:
 # общие имена демонов из STIX-фидов чужих платформ дают шквал ложных
 # срабатываний в краш-логах iOS (roleaccountd, updaterd, payload...).
+# Sections included in text scanning. "processes" is deliberately excluded:
+# generic daemon names from other platforms' STIX feeds cause a flood of
+# false positives in iOS crash logs (roleaccountd, updaterd, payload...).
 _SCANNED_SECTIONS = (
     "domains", "jailbreak_artifacts", "spyware_strings",
     "stalkerware_profiles", "emails", "file_paths",
@@ -87,7 +97,10 @@ _SCANNED_SECTIONS = (
 
 
 def _flat_needles(iocs: dict[str, Any]) -> list[tuple[str, dict, str, bool]]:
-    """[(needle_lower, ioc_entry, section, word_boundary)] — отсортированы по длине убыв."""
+    """[(needle_lower, ioc_entry, section, word_boundary)] — отсортированы по длине убыв.
+
+    Sorted by needle length descending.
+    """
     cache_key = tuple(
         tuple(
             str(x.get("value", "")) if isinstance(x, dict) else ""
@@ -120,6 +133,8 @@ def scan_text(iocs: dict[str, Any], text: str, location: str) -> list[Finding]:
     for needle, ioc, section, wb in _flat_needles(iocs):
         # Ищем все вхождения, пока не найдём то, что не гасится allowlist'ом
         # и проходит границы слова. dedupe схлопнет повторы файла.
+        # Scan all occurrences until we find one not suppressed by the allowlist
+        # and passing word boundaries. Dedupe collapses repeats within a file.
         idx = lowered.find(needle)
         hops = 0
         recorded = False
@@ -142,6 +157,7 @@ def scan_text(iocs: dict[str, Any], text: str, location: str) -> list[Finding]:
             line = _normalize(lowered[ls:le])
 
             # Allowlist: легитимное ПО в той же строке гасит совпадение.
+            # Allowlist: legitimate software on the same line suppresses the match.
             if any(a.search(line) for a in allow):
                 idx = lowered.find(needle, end or idx + 1)
                 continue
@@ -199,7 +215,10 @@ def go_available() -> bool:
 
 
 def _scan_with_go(crash_dir: Path) -> ScanResult | None:
-    """Тяжёлый IOC-скан отдаём Go-бинарнику (в ~7 раз быстрее Python)."""
+    """Тяжёлый IOC-скан отдаём Go-бинарнику (в ~7 раз быстрее Python).
+
+    Heavy IOC scanning is delegated to the Go binary (~7x faster than Python).
+    """
     if not go_available():
         return None
     try:
@@ -247,6 +266,7 @@ def run_scan(info: dict[str, Any], crash_dir: Path | None) -> ScanResult:
             result.findings.extend(log_findings)
 
         # URL-эвристики — Python поверх (малые файлы, недорого)
+        # URL heuristics run in Python on top (small files, cheap)
         for f in collect_log_files(crash_dir):
             try:
                 if f.stat().st_size > HEURISTIC_MAX_BYTES:

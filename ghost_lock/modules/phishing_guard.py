@@ -3,6 +3,12 @@
 На телефоне постоянную защиту даёт dns_shield.mobileconfig (DoH с
 блокировкой малвари на уровне резолвера). Здесь мы дополняем аудит:
 ищем в логах следы фишинговых/подозрительных доменов.
+
+Phishing shield: heuristics for suspicious URLs/IPs + data for the DNS profile.
+
+On the phone, persistent protection comes from dns_shield.mobileconfig (DoH
+with resolver-level malware blocking). Here we extend the audit: searching
+the logs for traces of phishing/suspicious domains.
 """
 
 from __future__ import annotations
@@ -30,7 +36,10 @@ def _host_of(url: str) -> str:
 def heuristic_url_findings(
     iocs: dict[str, Any], text: str, location: str
 ) -> list[Finding]:
-    """Ищет хосты, попадающие под фишинг-эвристики."""
+    """Ищет хосты, попадающие под фишинг-эвристики.
+
+        Finds hosts matching the phishing heuristics.
+        """
     ph = iocs.get("phishing_heuristics", {})
     brands = [b.lower() for b in ph.get("brand_keywords", [])]
     bad_tlds = tuple(t.lower() for t in ph.get("tld_watchlist", []))
@@ -51,10 +60,12 @@ def heuristic_url_findings(
         reason = None
 
         # 1. Бренд + watchlist-TLD: apple-id-verify.top
+        # 1. Brand + watchlisted TLD: apple-id-verify.top
         if any(b in host for b in brands) and host.endswith(bad_tlds):
             reason = "имитация бренда + подозрительный TLD"
 
         # 2. Фишинговая лексика рядом с брендом: secure-appleid-login.com
+        # 2. Phishing vocabulary next to a brand: secure-appleid-login.com
         if reason is None and any(b in host for b in brands):
             for rx, desc in patterns:
                 if rx.search(host) and "сырой IP" not in desc:
@@ -62,6 +73,7 @@ def heuristic_url_findings(
                     break
 
         # 3. Общие паттерны на любом хосте (punycode, сырой IP)
+        # 3. Generic patterns on any host (punycode, raw IP)
         if reason is None:
             for rx, desc in patterns:
                 if rx.search(host):
@@ -81,6 +93,9 @@ def heuristic_url_findings(
 
 
 def blocklist_for_profile(domains: list[str]) -> str:
-    """Формирует человекочитаемый блоклист для описания DNS-профиля."""
+    """Формирует человекочитаемый блоклист для описания DNS-профиля.
+
+        Builds a human-readable blocklist for the DNS profile description.
+        """
     lines = [f"- {d}" for d in sorted(set(d.lower() for d in domains))]
     return "\n".join(lines) if lines else "(пусто)"

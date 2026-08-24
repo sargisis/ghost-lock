@@ -1,3 +1,6 @@
+// Package scan реализует многопоточный IOC-скан текстовых файлов.
+//
+// Package scan implements concurrent IOC scanning of text files.
 package scan
 
 import (
@@ -13,8 +16,11 @@ import (
 	"glock/internal/ioc"
 )
 
-const MaxFileBytes = 8 << 20
+const MaxFileBytes = 8 << 20 // файлы больше не сканируем / files above this size are skipped
 
+// Finding — одно срабатывание IOC (формат совпадает с Python-сканером).
+//
+// Finding — a single IOC hit (format mirrors the Python scanner).
 type Finding struct {
 	Type     string `json:"type"`
 	Value    string `json:"value"`
@@ -24,6 +30,9 @@ type Finding struct {
 	Context  string `json:"context"`
 }
 
+// Stats — статистика прогона сканера.
+//
+// Stats — scanner run statistics.
 type Stats struct {
 	FilesScanned int     `json:"files"`
 	FilesSkipped int     `json:"skipped"`
@@ -31,17 +40,26 @@ type Stats struct {
 	Seconds      float64 `json:"seconds"`
 }
 
+// Result — итог JSON-ответа glock-scan.
+//
+// Result — the JSON answer of glock-scan.
 type Result struct {
 	Findings []Finding `json:"findings"`
 	Stats    Stats     `json:"stats"`
 }
 
+// Scanner хранит иглы, allowlist и базу IOC.
+//
+// Scanner holds needles, the allowlist and the IOC database.
 type Scanner struct {
 	db        *ioc.DB
 	needles   []ioc.Needle
 	allowlist []*regexp.Regexp
 }
 
+// New компилирует allowlist и готовит сканер из загруженной базы.
+//
+// New compiles the allowlist and builds a scanner from a loaded database.
 func New(db *ioc.DB) (*Scanner, error) {
 	var regs []*regexp.Regexp
 	for _, raw := range db.Allowlist {
@@ -81,6 +99,9 @@ func collapseSpace(s string) string {
 	return b.String()
 }
 
+// gated: строка под allowlist — совпадение гасится.
+//
+// gated: line matched the allowlist — the hit is suppressed.
 func (s *Scanner) gated(line string) bool {
 	for _, re := range s.allowlist {
 		if re.MatchString(line) {
@@ -90,6 +111,9 @@ func (s *Scanner) gated(line string) bool {
 	return false
 }
 
+// source: «файл-источник IOC (строка N)» для отчёта.
+//
+// source: "IOC source file (line N)" for the report.
 func (s *Scanner) source(n ioc.Needle, ls int, lowered string) string {
 	src := n.Entry.Source
 	if strings.TrimSpace(src) == "" {
@@ -98,6 +122,11 @@ func (s *Scanner) source(n ioc.Needle, ls int, lowered string) string {
 	return fmt.Sprintf("%s (строка %d)", src, strings.Count(lowered[:ls], "\n")+1)
 }
 
+// scanText: один файл целиком; word-boundary + allowlist, максимум одно
+// срабатывание на иглу (дедуп делает Python).
+//
+// scanText: one whole file; word boundaries + allowlist, at most one hit per
+// needle (dedup is done by the Python side).
 func (s *Scanner) scanText(text, location string) []Finding {
 	lowered := strings.ToLower(text)
 	var out []Finding
@@ -167,6 +196,9 @@ func (s *Scanner) scanText(text, location string) []Finding {
 	return out
 }
 
+// ScanDir обходит дерево и сканит файлы в workers горутин.
+//
+// ScanDir walks the tree and scans files in `workers` goroutines.
 func (s *Scanner) ScanDir(root string, workers int) Result {
 	start := time.Now()
 	res := Result{Findings: []Finding{}}

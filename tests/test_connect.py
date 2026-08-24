@@ -1,4 +1,7 @@
-"""Тесты connect: парсинг plist, разбор ошибок libimobiledevice."""
+"""Тесты connect: парсинг plist, разбор ошибок libimobiledevice.
+
+connect tests: plist parsing, libimobiledevice error handling.
+"""
 
 import subprocess
 import sys

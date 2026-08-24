@@ -7,6 +7,16 @@
 
 Список фидов строится автоматически из GitHub API репозитория
 AmnestyTech/investigations: все папки-расследования, все *.stix2 файлы.
+
+IOC database updates: AmnestyTech STIX feeds + plain-text lists.
+
+Parses full STIX 2.x bundles: domains, process names, emails, file paths.
+Each type is routed into its own section of indicators.json so the scanner
+can look for them in crash logs. IP addresses and hashes are deliberately
+skipped: in crash-log audits they are either useless or false-positive prone.
+
+The feed list is discovered automatically via the GitHub API of the
+AmnestyTech/investigations repo: every investigation folder, every *.stix2 file.
 """
 
 from __future__ import annotations
@@ -26,6 +36,7 @@ GITHUB_RAW = "https://raw.githubusercontent.com/AmnestyTech/investigations/maste
 USER_AGENT = "ghost-lock/1.0"
 
 # Дополнительные текстовые списки (проверенные пути)
+# Additional plain-text lists (verified paths)
 TXT_FEEDS = {
     "amnesty_pegasus_domains": "2021-07-18_nso/domains.txt",
     "amnesty_pegasus_v4": "2021-07-18_nso/v4_domains.txt",
@@ -33,12 +44,13 @@ TXT_FEEDS = {
 }
 
 # Типы весов по умолчанию для новых секций
+# Default weights for the new sections
 DEFAULT_WEIGHTS = {"domains": 8, "processes": 6, "emails": 7, "file_paths": 6}
 
 
 @dataclass
 class StixIndicator:
-    section: str  # domains | processes | emails | file_paths
+    section: str  # domains | processes | emails | file_paths (same in both languages)
     value: str
     source: str
 
@@ -61,7 +73,7 @@ def _http_json(url: str) -> Any:
     return json.loads(_http_get(url))
 
 
-# ── STIX парсер ──────────────────────────────────────────────────────────────
+# ── STIX парсер / STIX parser ────────────────────────────────────────────────
 
 _STIX_PATTERNS = (
     ("domain-name:value", re.compile(r"domain-name:value\s*=\s*['\"]([^'\"]+)['\"]", re.I)),
@@ -78,6 +90,7 @@ _SECTION_BY_TYPE = {
 }
 
 # Мусорные значения, которые встречаются в публичных фидах
+# Junk values that show up in public feeds
 _NOISE = {
     "", "example.com", "example.org", "localhost",
     "your.domain.com", "attacker.com", "c2.example.com",
@@ -95,7 +108,10 @@ def _clean(value: str) -> str:
 
 
 def parse_stix(text: str, source: str) -> list[StixIndicator]:
-    """Извлекает индикаторы из STIX 2.x bundle (JSON)."""
+    """Извлекает индикаторы из STIX 2.x bundle (JSON).
+
+        Extracts indicators from a STIX 2.x bundle (JSON).
+        """
     try:
         data = json.loads(text)
     except ValueError:
@@ -146,10 +162,13 @@ def parse_txt(text: str, source: str, section: str = "domains") -> list[StixIndi
     return out
 
 
-# ── Сбор фидов ───────────────────────────────────────────────────────────────
+# ── Сбор фидов / Feed collection ─────────────────────────────────────────────
 
 def discover_amnesty_stix_files() -> list[tuple[str, str]]:
-    """[(имя фида, raw-url)] по всем *.stix2 во всех расследованиях."""
+    """[(имя фида, raw-url)] по всем *.stix2 во всех расследованиях.
+
+        [(feed name, raw-url)] for every *.stix2 across all investigations.
+        """
     try:
         entries = _http_json(GITHUB_API)
     except OSError:
@@ -171,7 +190,10 @@ def discover_amnesty_stix_files() -> list[tuple[str, str]]:
 
 
 def collect_all() -> tuple[list[StixIndicator], list[str]]:
-    """Тянет все фиды. Возвращает (индикаторы, список ошибок)."""
+    """Тянет все фиды. Возвращает (индикаторы, список ошибок).
+
+    Fetches all feeds. Returns (indicators, list of errors).
+    """
     collected: list[StixIndicator] = []
     errors: list[str] = []
 
@@ -188,7 +210,7 @@ def collect_all() -> tuple[list[StixIndicator], list[str]]:
         except OSError as e:
             errors.append(f"{short}: {e}")
 
-    # дедуп на уровне сбора
+    # дедуп на уровне сбора / dedupe at collection level
     seen: set[tuple[str, str]] = set()
     unique: list[StixIndicator] = []
     for ind in collected:
@@ -200,10 +222,13 @@ def collect_all() -> tuple[list[StixIndicator], list[str]]:
     return unique, errors
 
 
-# ── Слияние с базой ──────────────────────────────────────────────────────────
+# ── Слияние с базой / Merging into the database ──────────────────────────────
 
 def merge_indicators(items: list[StixIndicator], ioc_path: Path | None = None) -> dict[str, int]:
-    """Разливает индикаторы по секциям базы, возвращает {секция: добавлено}."""
+    """Разливает индикаторы по секциям базы, возвращает {секция: добавлено}.
+
+    Routes indicators into their database sections; returns {section: added}.
+    """
     path = ioc_path or config.IOC_PATH
     with open(path, encoding="utf-8") as fh:
         db = json.load(fh)
@@ -239,7 +264,10 @@ def _bump_minor(version: str) -> str:
 
 
 def update() -> dict[str, Any]:
-    """Полное обновление. Возвращает сводку для CLI."""
+    """Полное обновление. Возвращает сводку для CLI.
+
+    Full update run. Returns a summary dict for the CLI.
+    """
     items, errors = collect_all()
     per_section = merge_indicators(items)
 

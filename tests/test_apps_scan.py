@@ -1,4 +1,7 @@
-"""Тесты скана приложений: парсинг ideviceinstaller и сверка со шпионскими bundle-id."""
+"""Тесты скана приложений: парсинг ideviceinstaller и сверка со шпионскими bundle-id.
+
+App-scan tests: ideviceinstaller parsing and matching against spyware bundle IDs.
+"""
 
 import sys
 import unittest

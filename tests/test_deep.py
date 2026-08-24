@@ -1,4 +1,7 @@
-"""Тесты глубокого режима: сбой бэкапа -> мягкий результат без краха."""
+"""Тесты глубокого режима: сбой бэкапа -> мягкий результат без краха.
+
+Deep-mode tests: backup failure -> soft result without a crash.
+"""
 
 import sys
 import unittest

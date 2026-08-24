@@ -8,6 +8,17 @@
 
 Сталкер/зловред проще всего поймать по дельте, а не по абсолюту:
 новое приложение после «обновления», всплеск незнакомых крашей.
+
+SQLite audit history + diff ('what changed since last time').
+
+Database: ~/.local/share/ghost-lock/history.db
+Tables:
+  audits        — one row per audit
+  app_snapshots — installed-app snapshot per audit
+  crash_files   — names of exported crash logs (to spot new ones)
+
+Stalkerware/malware is easiest to catch by the delta, not the absolute:
+a new app after an "update", a spike of unfamiliar crashes.
 """
 
 from __future__ import annotations
@@ -117,7 +128,10 @@ def save_audit(*, udid: str, device: str, ios_version: str, verdict: str,
 def diff_with_history(*, udid: str, current_apps: list[tuple[str, str]],
                       current_crash_names: list[str],
                       path: Path | None = None) -> DiffReport:
-    """Сравнивает текущий аудит со ВСЕЙ прошлой историей устройства."""
+    """Сравнивает текущий аудит со ВСЕЙ прошлой историей устройства.
+
+    Compares the current audit against ALL of the device's past history.
+    """
     rep = DiffReport()
     con = _connect(path)
     try:
@@ -147,7 +161,10 @@ def diff_with_history(*, udid: str, current_apps: list[tuple[str, str]],
 
 
 def format_diff(rep: DiffReport) -> list[str]:
-    """Строки для CLI/Telegram. Пустой список = первая проверка или без изменений."""
+    """Строки для CLI/Telegram. Пустой список = первая проверка или без изменений.
+
+    Lines for CLI/Telegram. Empty list means first check or no changes.
+    """
     if rep.is_first_audit:
         return ["Первый аудит этого устройства — история начата."]
     lines = []

@@ -4,6 +4,13 @@ lockdownd отдаёт минимум, но самое важное: PasswordPro
 Код-пароль — фундамент всей защиты: без него Face ID, USB Restricted
 Mode и автостирание не работают, а телефон разблокируется касанием.
 Биометрия по кабелю не читается (приватность iOS) — честно пишем это.
+
+Security hygiene check over the cable.
+
+lockdownd exposes little, but the most important thing: PasswordProtected.
+The passcode is the foundation of all protection: without it Face ID, USB
+Restricted Mode and auto-erase do not work, and the phone unlocks with a
+touch. Biometrics cannot be read over cable (iOS privacy) — we say so honestly.
 """
 
 from __future__ import annotations
@@ -18,8 +25,9 @@ INFO_TIMEOUT = 20
 
 @dataclass
 class HygieneCheck:
-    key: str          # машинное имя
+    key: str          # машинное имя / machine name
     ok: bool | None   # True хорошо / False плохо / None неизвестно
+                      # True good / False bad / None unknown
     title: str
     note: str = ""
 
@@ -52,6 +60,11 @@ def check_hygiene(info: dict[str, Any] | None = None,
     # пароль+Face ID включены, ключ стабильно false при любом состоянии
     # экрана). Реальный статус без MDM-супервизии недоступен, поэтому
     # false трактуем как «неизвестно», никогда как «выключен».
+    # Passcode: the cornerstone. BUT the PasswordProtected key is legacy and
+    # UNRELIABLE on iOS 27 (verified on a live device: passcode + Face ID on,
+    # yet the key stays false in every screen state). The real status is not
+    # available without MDM supervision, so we treat false as "unknown",
+    # never as "disabled".
     pp = info.get("PasswordProtected")
     pp_state = None if pp is None else str(pp).strip().lower() == "true"
     if pp_state is True:
@@ -61,7 +74,7 @@ def check_hygiene(info: dict[str, Any] | None = None,
         checks.append(HygieneCheck("passcode", None, "Код-пароль: не читается по кабелю",
                                    "Проверь вручную: Настройки → Face ID и код-пароль"))
 
-    # Активация
+    # Активация / Activation
     act = info.get("ActivationState")
     if act and act != "Activated":
         checks.append(HygieneCheck("activation", False, f"Устройство не активировано ({act})", ""))
@@ -69,6 +82,7 @@ def check_hygiene(info: dict[str, Any] | None = None,
         checks.append(HygieneCheck("activation", True, "Устройство активировано", ""))
 
     # Биометрия честно: не отдаётся без MDM-супервизии
+    # Biometrics, honestly: not exposed without MDM supervision
     checks.append(HygieneCheck("biometry", None, "Биометрия: не читается по кабелю",
                                "Рекомендация: Face ID с Attention Detection включён"))
 
@@ -82,5 +96,12 @@ def hygiene_score(checks: list[HygieneCheck]) -> int:
     признан ненадёжным на современных iOS — штрафовать на его основе
     нельзя. Структура оставлена для будущей поддержки supervised-устройств,
     где читается настоящий SecurityInfo.
+
+    Penalty added to the overall score.
+
+    Always 0: the only cable-readable signal (PasswordProtected) proved
+    unreliable on modern iOS, so penalizing based on it is impossible.
+    The structure is kept for future supervised-device support, where the
+    real SecurityInfo is readable.
     """
     return 0

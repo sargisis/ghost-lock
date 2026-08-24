@@ -165,14 +165,26 @@ def cmd_audit(args: argparse.Namespace) -> None:
     step("Выгрузка краш-логов (это основной источник следов шпионов)…")
     crash_dir, n_logs = diagnostics.export_crash_logs(udid)
     ok(f"Краш-логи в {crash_dir} ({n_logs} файлов)")
+    crash_names = sorted(p.name for p in Path(crash_dir).iterdir() if p.is_file())
 
     step("IOC-скан (домены C2, джейлбрейк-артефакты, стalkerware-профили, фишинг-эвристики)…")
     result = run_scan(info, crash_dir)
 
+    # ── Deep-режим: полный бэкап + скан всего содержимого ──────────────────
+    if getattr(args, "deep", False):
+        from ghost_lock.modules import deep_scan
+        deep_result = deep_scan.run(udid, info)
+        result.findings.extend(deep_result.findings)
+        result.files_scanned += deep_result.files_scanned
+        if deep_result.stats_note:
+            print(yellow(f"[~] {deep_result.stats_note}"))
+
     step("Скан установленных приложений (stalkerware по bundle-id)…")
+    apps_pairs: list[tuple[str, str]] = []
     try:
         from ghost_lock.modules import apps_scan
         apps = apps_scan.list_installed_apps(udid)
+        apps_pairs = [(a.bundle_id, a.version) for a in apps]
         ok(f"Установленных приложений: {len(apps)}")
         app_findings = apps_scan.scan_apps(load_iocs(), apps)
         result.findings.extend(app_findings)
@@ -180,6 +192,32 @@ def cmd_audit(args: argparse.Namespace) -> None:
             ok("Шпионских приложений не обнаружено.")
     except RuntimeError as e:
         print(yellow(f"[~] Пропускаю скан приложений: {e}"))
+
+    step("Гигиена безопасности…")
+    from ghost_lock.modules import hygiene
+    hygiene_checks = hygiene.check_hygiene(info=info, udid=udid)
+    for c in hygiene_checks:
+        mark = green("[+]") if c.ok else (yellow("[~]") if c.ok is None else red("[!]"))
+        line = f"{mark} {c.title}"
+        if c.note and c.ok is not True:
+            line += f" — {c.note}"
+        print(line)
+    if hygiene.hygiene_score(hygiene_checks):
+        from ghost_lock.modules.models import Finding
+        result.findings.append(Finding(
+            ioc_type="hygiene", value="код-пароль выключен",
+            weight=hygiene.hygiene_score(hygiene_checks),
+            source="hygiene", location="device",
+            context="Без код-пароля все профили и Lockdown Mode снимаются за секунды",
+        ))
+
+    step("Что изменилось с прошлого раза…")
+    from ghost_lock.modules import history
+    diff = history.diff_with_history(
+        udid=udid, current_apps=apps_pairs, current_crash_names=crash_names)
+    diff_lines = history.format_diff(diff)
+    for ln in diff_lines:
+        print(f"  {ln}")
 
     step("Проверка свежести iOS…")
     os_note = ""
@@ -229,6 +267,18 @@ def cmd_audit(args: argparse.Namespace) -> None:
     path = report_mod.write_report(html)
     ok(f"Отчёт: {path}")
 
+    step("Сохраняю аудит в историю…")
+    from ghost_lock.modules import history as _hist
+    _hist.save_audit(
+        udid=udid, device=str(info.get("DeviceName", "")),
+        ios_version=str(info.get("ProductVersion", "")),
+        verdict=verdict_en, score=result.score,
+        files_scanned=result.files_scanned, apps=apps_pairs,
+        crash_names=crash_names, ioc_version=iocs_version(),
+        deep=bool(getattr(args, "deep", False)),
+    )
+    ok("Готово.")
+
     step("Уведомление в Telegram…")
     from ghost_lock.modules import telegram_notify
     device_name = info.get("DeviceName") or "iPhone"
@@ -236,7 +286,7 @@ def cmd_audit(args: argparse.Namespace) -> None:
     if telegram_notify.notify_audit(
         verdict_en=verdict_en, verdict_ru=verdict_ru, score=result.score,
         device=device_name, files_scanned=result.files_scanned,
-        findings_top=top, report_path=str(path),
+        findings_top=top, report_path=str(path), extra_lines=diff_lines[:3],
     ):
         ok("Отправлено.")
     else:
@@ -443,6 +493,8 @@ def main() -> None:
 
     p_audit = sub.add_parser("audit", help="полный аудит устройства")
     p_audit.add_argument("--udid", help="UDID конкретного устройства")
+    p_audit.add_argument("--deep", action="store_true",
+                         help="глубокий режим: полный бэкап телефона + скан всех файлов (долго!)")
     p_audit.set_defaults(func=cmd_audit)
 
     p_prof = sub.add_parser("profiles", help="инструкция по установке защиты на телефон")

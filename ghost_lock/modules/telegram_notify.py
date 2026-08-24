@@ -102,13 +102,17 @@ def send_message(text: str, token: str | None = None, chat_id: int | str | None 
 
 def format_audit(verdict_en: str, verdict_ru: str, score: int,
                  device: str, files_scanned: int, findings_top: list[tuple[int, str, str]],
-                 report_name: str) -> str:
+                 report_name: str, extra_lines: list[str] | None = None) -> str:
     emoji, label = VERDICT_STYLE.get(verdict_en.lower(), ("❓", verdict_en))
     lines = [
         f"{emoji} <b>ghost-lock: {label}</b> (score {score})",
         f"📱 {device}",
         f"🗂 просканировано файлов: {files_scanned}",
     ]
+    if extra_lines:
+        lines.append("")
+        for ln in extra_lines:
+            lines.append(_esc(ln))
     if findings_top:
         lines.append("\n<b>Топ находок:</b>")
         for weight, value, location in findings_top[:5]:
@@ -123,12 +127,12 @@ def format_audit(verdict_en: str, verdict_ru: str, score: int,
 
 def notify_audit(*, verdict_en: str, verdict_ru: str, score: int, device: str,
                  files_scanned: int, findings_top: list[tuple[int, str, str]],
-                 report_path: str) -> bool:
+                 report_path: str, extra_lines: list[str] | None = None) -> bool:
     """Шлёт алерт. Тихо возвращает False если не настроено/нет сети."""
     try:
         text = format_audit(
             verdict_en, verdict_ru, score, device, files_scanned,
-            findings_top, Path(report_path).name,
+            findings_top, Path(report_path).name, extra_lines=extra_lines,
         )
         return send_message(text)
     except Exception:

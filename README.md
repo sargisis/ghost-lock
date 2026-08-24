@@ -1,221 +1,231 @@
 # ghost-lock
 
-**Аудит и укрепление iPhone поверх Lockdown Mode.** Локальный тулкит на Python + Go:
-форензика краш-логов против шпионского ПО класса Pegasus/Predator, авто-аудит при
-подключении по USB, профили жёсткой защиты на телефон и алерты в Telegram.
+**iPhone security audit & hardening toolkit that works on top of Lockdown Mode.**
+A local Python + Go toolset: crash-log forensics against Pegasus/Predator-class
+spyware, automatic audits on USB connect, hardening profiles installed on the
+phone, and Telegram alerts.
 
-Без джейлбрейка. Без Apple Developer аккаунта. Без сторонних приложений на телефоне.
-Всё работает локально.
+No jailbreak. No Apple Developer account. No third-party apps on the phone.
+Everything runs locally.
 
 ---
 
-## Как это устроено
+## How it works
 
-iOS закрыта: без джейлбрейка в телефон нельзя поставить фонового демона или
-дописать что-то внутрь Lockdown Mode. Поэтому ghost-lock построен на легальных
-механизмах и закрывает **четыре независимых слоя**:
+iOS is a closed system: without a jailbreak you cannot install a background
+daemon into the phone or bolt anything onto Lockdown Mode. So ghost-lock is
+built entirely on legitimate mechanisms and covers **four independent layers**:
 
-| Слой | Где | Что даёт |
+| Layer | Where | What it does |
 |---|---|---|
-| **Lockdown Mode** | Телефон | Базовый слой Apple — ghost-lock его не трогает, а дополняет |
-| **Профили** (`dns_shield`, `hardened`, `web_filter`) | Телефон, постоянно | Зашифрованный DNS, системные ограничения, блоклист шпионских доменов на уровне WebKit |
-| **Аудит** (`audit`) | ПК, по кабелю | Форензика: скан выгруженных краш-логов, приложений, гигиены; история и diff между проверками |
-| **Автоматизация** (`glock-watch`) | ПК, постоянно | Сам видит подключение айфона → сам запускает аудит → сам шлёт вердикт в Telegram |
+| **Lockdown Mode** | Phone | Apple's baseline — ghost-lock doesn't touch it, it complements it |
+| **Profiles** (`dns_shield`, `hardened`, `web_filter`) | Phone, always-on | Encrypted DNS, system restrictions, spyware domain blocklist enforced at the WebKit level |
+| **Audit** (`audit`) | PC, over cable | Forensics: scans exported crash logs, installed apps, security hygiene; keeps history and diffs between checks |
+| **Automation** (`glock-watch`) | PC, always-on | Sees the phone hit USB → runs the audit → sends the verdict to Telegram |
 
-Философия: **Lockdown Mode предотвращает, ghost-lock детектит и верифицирует.**
+Philosophy: **Lockdown Mode prevents; ghost-lock detects and verifies.**
 
-## Быстрый старт
+## Quick start
 
 ```bash
-sudo apt install libimobiledevice-utils   # если ещё нет
-python3 ghost_lock/ghost_lock.py doctor   # проверка окружения
-python3 ghost_lock/ghost_lock.py devices  # список айфонов
-python3 ghost_lock/ghost_lock.py audit    # полный аудит + HTML-отчёт
+sudo apt install libimobiledevice-utils   # if not present yet
+python3 ghost_lock/ghost_lock.py doctor   # environment check
+python3 ghost_lock/ghost_lock.py devices  # list connected iPhones
+python3 ghost_lock/ghost_lock.py audit    # full audit + HTML report
 ```
 
-При первом подключении разблокируй айфон и подтверди «Доверять этому компьютеру».
-Отчёты складываются в `~/.local/share/ghost-lock/reports/`.
+On first connect, unlock the phone and tap "Trust This Computer".
+Reports land in `~/.local/share/ghost-lock/reports/`.
 
-## Команды
+## Commands
 
 ```
-doctor           проверка окружения
-devices          список подключённых устройств
-audit            полный аудит (--udid <UDID>, --deep для глубокого режима)
-profiles         генерация профилей для телефона (+ --serve для раздачи по Wi-Fi)
-setup-telegram   подключение алертов (нужен токен от @BotFather)
-update-ioc       обновление базы индикаторов из STIX-фидов AmnestyTech
+doctor           environment check
+devices          list connected devices
+audit            full audit (--udid <UDID>, --deep for forensic mode)
+profiles         generate phone profiles (+ --serve to serve over Wi-Fi)
+setup-telegram   connect alerts (needs a token from @BotFather)
+update-ioc       refresh the indicator database from AmnestyTech STIX feeds
 ```
 
-## Аудит: что происходит внутри
+## Inside the audit
 
-1. **Выгрузка краш-логов** — основной источник следов: в логах падений остаются
-   упоминания C2-доменов, имён имплантов, джейлбрейк-артефактов.
-2. **IOC-скан** гибридным движком: тяжёлая часть в Go (воркер-пул), эвристики
-   URL/фишинга в Python. Allowlist отсекает ложные срабатывания (например,
-   легитимный `Pegasus.framework` из состава iOS).
-3. **Скан приложений** против известных bundle-id стalkerware
+1. **Crash-log export** — the richest evidence source: crash logs retain
+   mentions of C2 domains, implant names, jailbreak artifacts.
+2. **IOC scan** by a hybrid engine: heavy lifting in Go (worker pool), URL and
+   phishing heuristics in Python. An allowlist suppresses false positives
+   (e.g. the legit `Pegasus.framework` shipped inside iOS itself).
+3. **App inventory scan** against known stalkerware bundle IDs
    (mSpy/FlexiSPY/CocoSpy/uMobix/EyeZy…).
-4. **Гигиена безопасности**: что читается по кабелю (активация, состояние пароля),
-   с честными пометками «не читается» там, где iOS не отдаёт данные.
-5. **Свежесть iOS** через api.ipsw.me — устаревшая версия = рабочие известные
-   эксплойты.
-6. **Diff «что изменилось»**: новые/удалённые приложения, незнакомые краш-логи —
-   сравнение со всей историей предыдущих аудитов (SQLite).
+4. **Security hygiene**: everything readable over cable (activation state,
+   passcode status), with honest "unreadable" marks where iOS refuses to talk.
+5. **iOS freshness check** via api.ipsw.me — an outdated OS means known
+   exploits stay usable.
+6. **"What changed" diff**: new/removed apps, never-seen-before crash logs,
+   compared against the entire audit history (SQLite).
 
-Скоринг: `<3` чисто · `3–14` подозрительно · `≥15` критично.
+Scoring: `<3` clean · `3–14` suspicious · `≥15` critical.
 
-### Глубокий режим
+### Deep mode
 
 ```bash
 python3 ghost_lock/ghost_lock.py audit --deep
 ```
 
-Полный бэкап телефона через `idevicebackup2` (SMS-базы, история Safari,
-сетевая статистика) + скан всего содержимого. Первый прогон — десятки минут,
-дальше инкрементально быстро. Обычный аудит смотрит сотни файлов, deep — десятки тысяч.
+A full device backup via `idevicebackup2` (SMS databases, Safari history,
+network usage) followed by a sweep of everything inside. The first run takes
+tens of minutes; later ones are incremental and fast. A regular audit sees
+hundreds of files — deep mode sees tens of thousands.
 
-## История аудитов и diff
+## Audit history & diff
 
-Каждый аудит сохраняется в `~/.local/share/ghost-lock/history.db`.
-Следующая проверка показывает дельту:
+Every audit is stored in `~/.local/share/ghost-lock/history.db`.
+The next check prints the delta:
 
 ```
-[*] Что изменилось с прошлого раза…
-  🆕 Новые приложения (1): com.evil.stalker
-  📉 Новых краш-логов: 14
+[*] What changed since last time…
+  🆕 New apps (1): com.evil.stalker
+  📉 New crash logs: 14
 ```
 
-Сталкер проще всего поймать именно по изменениям, а не по абсолюту.
-Три строки diff уезжают в Telegram-алерт.
+Stalkerware is easiest to catch by its *delta*, not its absolute footprint.
+The top diff lines ride along in every Telegram alert.
 
-## Профили на телефон
+## Phone profiles
 
 ```bash
-python3 ghost_lock/ghost_lock.py profiles --serve   # раздать по Wi-Fi
-# или просто отправить файлы из ghost_lock/profiles/ себе в мессенджер
+python3 ghost_lock/ghost_lock.py profiles --serve   # serve over Wi-Fi
+# or simply send the files from ghost_lock/profiles/ to yourself
 ```
 
-На телефоне: открыть файл → Установить. Проверка: Настройки → Основное →
-VPN и управление устройством. iOS покажет «Профиль не подписан» — нормально
-для ручной установки.
+On the phone: open the file → Install. Verify under Settings → General →
+VPN & Device Management. iOS will warn "Profile is not signed" — expected for
+manually installed profiles.
 
-> Установка новых профилей требует временно выключить Lockdown Mode
-> (Настройки → Конфиденциальность и безопасность). После установки включи обратно.
+> Installing new profiles requires temporarily disabling Lockdown Mode
+> (Settings → Privacy & Security). Re-enable it afterwards.
 
-| Файл | Тип payload | Что делает |
+| File | Payload type | Purpose |
 |---|---|---|
-| `dns_shield.mobileconfig` | DNS Settings (DoH) | Зашифрованный DNS + фильтрация на уровне резолвера. `ServerFallback` страхует от «сломанного интернета» при сбое DoH |
-| `web_filter.mobileconfig` | Web Content Filter | **Spyware Domain Wall**: топ-500 C2-доменов Pegasus/Predator/FinFisher блокируются на уровне Safari/WebKit — второй эшелон, работающий даже мимо нашего DNS |
-| `hardened.mobileconfig` | Restrictions | Системные ограничения поверх Lockdown Mode |
+| `dns_shield.mobileconfig` | DNS Settings (DoH) | Encrypted DNS with resolver-level filtering. A `ServerFallback` keeps the internet working if the DoH endpoint hiccups |
+| `web_filter.mobileconfig` | Web Content Filter | **Spyware Domain Wall**: the top-500 C2 domains of Pegasus/Predator/FinFisher blocked at the Safari/WebKit level — a second line of defense that works even off our DNS |
+| `hardened.mobileconfig` | Restrictions | System restrictions stacked on top of Lockdown Mode |
 
-Пресеты DNS-щита:
+DNS presets:
 
-| Пресет | Блокирует | Пример |
+| Preset | Blocks | Example |
 |---|---|---|
-| `family` *(default)* | малварь, фишинг, взрослый контент (CleanBrowsing Family) | — |
-| `cf-family` / `security` | варианты Cloudflare без контентной части | — |
-| `nextdns --nextdns-id <ID>` | что настроишь в панели my.nextdns.io | `profiles --preset nextdns --nextdns-id abc123` |
+| `family` *(default)* | malware, phishing, adult content (CleanBrowsing Family) | — |
+| `cf-family` / `security` | Cloudflare variants without content filtering | — |
+| `nextdns --nextdns-id <ID>` | whatever you configure at my.nextdns.io | `profiles --preset nextdns --nextdns-id abc123` |
 
-Стена доменов пересобирается из актуальной базы IOC командой `profiles`
-— переустанови файл, чтобы обновить список.
+The Domain Wall rebuilds from the current IOC database whenever you run
+`profiles` — reinstall the file to refresh the blocklist.
 
-## Авто-аудит при подключении USB
+## Automatic audits on USB connect
 
-Go-демон слушает kernel-события через netlink, видит подключение айфона и сам
-запускает полный аудит. Ставится пользовательским systemd-сервисом:
+A Go daemon listens to kernel uevents over netlink, spots the iPhone plugging
+in and runs the full audit by itself. Installed as a systemd user service:
 
 ```bash
 ./deploy/install_watch.sh
 ```
 
 ```bash
-systemctl --user status glock-watch     # жив ли
-journalctl --user -u glock-watch -f     # логи аудитов в реальном времени
+systemctl --user status glock-watch     # is it alive
+journalctl --user -u glock-watch -f     # live audit logs
 ```
 
-Кулдаун 90 секунд защищает от повторных срабатываний. Чтобы сервис стартовал
-до логина: `sudo loginctl enable-linger $USER`. Старый udev-вариант
-(`install_udev.sh`) вместе с демоном не нужен — будет двойной запуск.
+A 90-second cooldown prevents event storms. To start the service before login:
+`sudo loginctl enable-linger $USER`. Don't combine with the legacy udev rule
+(`install_udev.sh`) or audits will fire twice.
 
-## Telegram-алерты
+## Telegram alerts
 
 ```bash
-python3 ghost_lock/ghost_lock.py setup-telegram --token <ТОКЕН_ОТ_BotFather>
+python3 ghost_lock/ghost_lock.py setup-telegram --token <TOKEN_FROM_BotFather>
 ```
 
-Скрипт сам поймает chat_id (напиши боту любое слово во время настройки) и вышлет
-тестовое сообщение. Дальше каждый аудит — включая автоматические — присылает
-вердикт, score и топ находок. Токен лежит в `~/.config/ghost-lock/telegram.json`
-с правами 600, вне репозитория. Нет сети или конфига — аудит молча продолжается.
+The script discovers your chat_id automatically (send the bot any message
+during setup) and sends a test notification. Every audit afterwards — including
+automatic ones — reports the verdict, score and top findings. The token lives
+outside the repo in `~/.config/ghost-lock/telegram.json` with `0600`
+permissions. No network or no config? The audit quietly continues anyway.
 
-## База IOC
+## The IOC database
 
 ```bash
 python3 ghost_lock/ghost_lock.py update-ioc
 ```
 
-Парсер STIX 2.x тянет **все расследования AmnestyTech** (Pegasus, Predator,
-FinFisher, DoNOT, NovaSpy, Wintego…) через GitHub API: домены, email'ы,
-пути файлов. Имена процессов из кроссплатформенных отчётов сознательно
-исключены из скана — они дают шквал ложных срабатываний в краш-логах iOS
-(проверено: `roleaccountd`, `updaterd` — легитимные демоны Apple).
+A STIX 2.x parser pulls **every AmnestyTech investigation** (Pegasus, Predator,
+FinFisher, DoNOT, NovaSpy, Wintego…) via the GitHub API: domains, emails, file
+paths. Process names from cross-platform reports are deliberately excluded from
+scanning — they cause a flood of false positives in iOS crash logs (verified:
+`roleaccountd` and `updaterd` are legit Apple daemons).
 
-Текущий размер базы: **~4300 индикаторов**. Формат записи:
-`{"value": "домен", "weight": 1-10, "source": "отчёт"}`.
+Current database size: **~4,300 indicators**. Entry format:
+`{"value": "domain", "weight": 1-10, "source": "report"}`.
 
-## Тесты
+## Tests
 
-190 Python-тестов (сканер, allowlist, STIX, история/diff, гигиена, WCF-профиль,
-Telegram, CLI, интеграция) + Go-тесты (движок скана, парсер uevent):
+190 Python tests (scanner, allowlist, STIX, history/diff, hygiene, WCF profile,
+Telegram, CLI, integration) plus Go tests (scan engine, uevent parser):
 
 ```bash
 python3 -m unittest discover -s tests
 cd go && go test ./...
 ```
 
-## Структура проекта
+## Project layout
 
 ```
 ghost_lock/
 ├── ghost_lock.py            # CLI
-├── config.py                # пути, пресеты DNS, пороги скоринга
+├── config.py                # paths, DNS presets, scoring thresholds
 ├── modules/
-│   ├── connect.py           # usbmuxd/lockdownd, ошибки человеческим языком
-│   ├── diagnostics.py       # выгрузка краш-логов (fault-tolerant)
-│   ├── spyware_scan.py      # движок: Go-бинарь или Python-fallback
-│   ├── apps_scan.py         # стalkerware по bundle-id
-│   ├── hygiene.py           # чек гигиены по кабелю
-│   ├── history.py           # SQLite-история + diff
-│   ├── deep_scan.py         # полный бэкап + форензика
-│   ├── profile_gen.py       # генератор всех .mobileconfig
-│   ├── telegram_notify.py   # алерты
-│   ├── ioc_update.py        # STIX-парсер + слияние фидов
-│   ├── os_check.py          # свежесть iOS
-│   └── report.py            # HTML-отчёт
-├── ioc/indicators.json      # база индикаторов
-├── profiles/                # готовые .mobileconfig
+│   ├── connect.py           # usbmuxd/lockdownd with human-readable errors
+│   ├── diagnostics.py       # fault-tolerant crash-log export
+│   ├── spyware_scan.py      # engine: Go binary or Python fallback
+│   ├── apps_scan.py         # stalkerware by bundle-id
+│   ├── hygiene.py           # over-cable security hygiene check
+│   ├── history.py           # SQLite history + diff
+│   ├── deep_scan.py         # full backup + forensics sweep
+│   ├── profile_gen.py       # generates every .mobileconfig
+│   ├── telegram_notify.py   # alerts
+│   ├── ioc_update.py        # STIX parser + feed merging
+│   ├── os_check.py          # iOS freshness
+│   └── report.py            # HTML report
+├── ioc/indicators.json      # indicator database
+├── profiles/                # ready-to-install .mobileconfig files
 go/
-├── cmd/glock-scan/          # CLI сканера (JSON out)
-├── cmd/glock-watch/         # демон авто-аудита
+├── cmd/glock-scan/          # scanner CLI (JSON output)
+├── cmd/glock-watch/         # auto-audit daemon
 └── internal/{ioc,scan,watch}/
-tests/                       # 190 юнит-тестов
-deploy/                      # systemd-юнит, установщики
+tests/                       # 190 unit tests
+deploy/                      # systemd unit, installers
 ```
 
-## Честно об ограничениях
+## Honest limitations
 
-- Ключ `PasswordProtected` из lockdownd **ненадёжен на современных iOS**
-  (проверено на iOS 27: показывает `false` при включённом пароле и Face ID).
-  Гигиена трактует его как «неизвестно», никогда как «выключен». Настоящий
-  статус код-пароля доступен только через MDM-супервизию — проверяй вручную.
-- Обычный аудит видит краш-логи и метаданные, но не содержимое телефона;
-  для полной глубины есть `--deep`.
-- DoH-щит не видит трафик мимо DNS (заашитые IP); стена WebKit не контролирует
-  нативный (не-WebKit) трафик. Именно поэтому слоёв несколько.
-- Глубокая инспекция трафика внутри iOS требует своего NetworkExtension-VPN
-  и Apple Developer аккаунта — вне scope проекта.
-- Часть ключей hardened-профиля применяется только на устройствах «Под контролем»
-  (Apple Configurator) — такие ключи помечены и честно игнорируются iOS.
-- Установку профилей нельзя автоматизировать удалённо: Apple принципиально
-  требует ручного подтверждения. Это же защищает профили от снятия зловредом.
+- The legacy `PasswordProtected` key from lockdownd is **unreliable on modern
+  iOS** — verified on iOS 27: it reports `false` with a passcode and Face ID
+  enabled, regardless of screen state. Hygiene therefore treats it as
+  "unknown", never as "off". The true passcode status requires MDM supervision;
+  check manually.
+- A regular audit sees crash logs and device metadata, not phone contents;
+  use `--deep` for full depth.
+- The DoH shield can't see traffic that bypasses DNS (hardcoded IPs); the
+  WebKit wall doesn't govern native (non-WebKit) traffic. Which is exactly why
+  there are several layers.
+- Deep traffic inspection inside iOS would require a custom NetworkExtension
+  VPN app and an Apple Developer account — out of scope here.
+- Some hardened-profile keys only apply to supervised devices (Apple
+  Configurator); those are marked as such and honestly ignored by iOS.
+- Profile installation cannot be automated remotely: Apple deliberately
+  requires manual confirmation — which also protects the profiles from being
+  silently removed by malware.
+
+---
+
+README на русском: [README.ru.md](README.ru.md)

@@ -27,6 +27,10 @@ Philosophy: **Lockdown Mode prevents; ghost-lock detects and verifies.**
 
 ## Quick start
 
+> **Linux · macOS · Windows:** full per-platform installation guide in
+> [docs/INSTALL.md](docs/INSTALL.md) (RU: [docs/INSTALL.ru.md](docs/INSTALL.ru.md)).
+> The auto-audit daemon is Linux-only; everything else is cross-platform.
+
 ```bash
 sudo apt install libimobiledevice-utils   # if not present yet
 python3 ghost_lock/ghost_lock.py doctor   # environment check

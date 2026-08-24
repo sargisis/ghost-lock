@@ -26,6 +26,11 @@ iOS закрыта: без джейлбрейка в телефон нельзя
 
 ## Быстрый старт
 
+> **Linux · macOS · Windows:** полная инструкция по установке на каждую
+> платформу — [docs/INSTALL.ru.md](docs/INSTALL.ru.md) (EN:
+> [docs/INSTALL.md](docs/INSTALL.md)). Демон авто-аудита работает только
+> на Linux; всё остальное кроссплатформенно.
+
 ```bash
 sudo apt install libimobiledevice-utils   # если ещё нет
 python3 ghost_lock/ghost_lock.py doctor   # проверка окружения

@@ -199,8 +199,12 @@ go/
 ├── cmd/glock-watch/         # демон авто-аудита
 └── internal/{ioc,scan,watch}/
 tests/                       # 190 юнит-тестов
-deploy/                      # systemd-юнит, установщики
+deploy/                      # systemd user-юнит + установщик
 ```
+
+## Лицензия
+
+[MIT](LICENSE)
 
 ## Честно об ограничениях
 

@@ -135,8 +135,7 @@ journalctl --user -u glock-watch -f     # логи аудитов в реаль�
 ```
 
 Кулдаун 90 секунд защищает от повторных срабатываний. Чтобы сервис стартовал
-до логина: `sudo loginctl enable-linger $USER`. Старый udev-вариант
-(`install_udev.sh`) вместе с демоном не нужен — будет двойной запуск.
+до логина: `sudo loginctl enable-linger $USER`.
 
 ## Telegram-алерты
 

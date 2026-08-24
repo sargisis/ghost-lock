@@ -137,8 +137,7 @@ journalctl --user -u glock-watch -f     # live audit logs
 ```
 
 A 90-second cooldown prevents event storms. To start the service before login:
-`sudo loginctl enable-linger $USER`. Don't combine with the legacy udev rule
-(`install_udev.sh`) or audits will fire twice.
+`sudo loginctl enable-linger $USER`.
 
 ## Telegram alerts
 
@@ -203,8 +202,12 @@ go/
 ├── cmd/glock-watch/         # auto-audit daemon
 └── internal/{ioc,scan,watch}/
 tests/                       # 190 unit tests
-deploy/                      # systemd unit, installers
+deploy/                      # systemd user unit + installer
 ```
+
+## License
+
+[MIT](LICENSE)
 
 ## Honest limitations
 

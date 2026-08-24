@@ -20,6 +20,9 @@ type DB struct {
 	SpywareStrings  []Entry  `json:"spyware_strings"`
 	StalkerwareProf []Entry  `json:"stalkerware_profiles"`
 	SpywareBundles  []Entry  `json:"spyware_bundles"`
+	Processes       []Entry  `json:"processes"`
+	Emails          []Entry  `json:"emails"`
+	FilePaths       []Entry  `json:"file_paths"`
 	Allowlist       []string `json:"allowlist"`
 }
 
@@ -59,6 +62,10 @@ func (d *DB) Needles() []Needle {
 		{"spyware_strings", d.SpywareStrings, true},
 		{"stalkerware_profiles", d.StalkerwareProf, false},
 		{"spyware_bundles", d.SpywareBundles, false},
+		// "processes" сознательно НЕ сканируем: общие имена демонов из
+		// чужих отчётов дают сотни ложных срабатываний в краш-логах iOS.
+		{"emails", d.Emails, false},
+		{"file_paths", d.FilePaths, false},
 	}
 
 	var out []Needle

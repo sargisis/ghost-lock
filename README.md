@@ -67,21 +67,34 @@ Gambling в панели.
 
 ## Тесты
 
-113 тестов: сканер, allowlist, фишинг-эвристики, генератор профилей,
-отчёт, CLI, интеграция пайплайна.
+Тесты: 137 Python (сканер, allowlist, фишинг-эвристики, генератор профилей,
+отчёт, CLI, интеграция пайплайна) + Go-тесты (движок скана, парсер uevent).
 
 ```bash
 python3 -m unittest discover -s tests -v
+cd go && go test ./...
 ```
 
-## Автозапуск при подключении по USB
+## Автозапуск при подключении по USB (glock-watch)
+
+Go-демон слушает kernel-события USB через netlink и сам запускает аудит,
+как только айфон воткнули в кабель. Ставится как пользовательский
+systemd-сервис, стартует при включении компа:
 
 ```bash
-sudo ./deploy/install_udev.sh
+./deploy/install_watch.sh
 ```
 
-Теперь при каждом подключении айфона аудит запускается сам;
-лог: `~/.local/share/ghost-lock/udev.log`.
+Управление:
+```bash
+systemctl --user status glock-watch     # что делает прямо сейчас
+journalctl --user -u glock-watch -f     # живые логи аудитов
+systemctl --user stop glock-watch       # остановить
+```
+
+Чтобы сервис поднимался до логина: `sudo loginctl enable-linger $USER`.
+Старый udev-вариант (`deploy/install_udev.sh`) не нужен вместе с демоном —
+иначе аудит запустится дважды.
 
 ## Обновление базы IOC
 

@@ -77,22 +77,30 @@ def _allowlist(iocs: dict[str, Any]) -> list[re.Pattern[str]]:
 _NEEDLE_CACHE: dict[tuple, list[tuple[str, dict, str, bool]]] = {}
 
 
+# Секции, участвующие в скане текстов. "processes" исключена намеренно:
+# общие имена демонов из STIX-фидов чужих платформ дают шквал ложных
+# срабатываний в краш-логах iOS (roleaccountd, updaterd, payload...).
+_SCANNED_SECTIONS = (
+    "domains", "jailbreak_artifacts", "spyware_strings",
+    "stalkerware_profiles", "emails", "file_paths",
+)
+
+
 def _flat_needles(iocs: dict[str, Any]) -> list[tuple[str, dict, str, bool]]:
     """[(needle_lower, ioc_entry, section, word_boundary)] — отсортированы по длине убыв."""
-    sections = ("domains", "jailbreak_artifacts", "spyware_strings", "stalkerware_profiles")
     cache_key = tuple(
         tuple(
             str(x.get("value", "")) if isinstance(x, dict) else ""
             for x in iocs.get(section, [])
         )
-        for section in sections
+        for section in _SCANNED_SECTIONS
     )
     cached = _NEEDLE_CACHE.get(cache_key)
     if cached:
         return cached
 
     needles: list[tuple[str, dict, str, bool]] = []
-    for section in sections:
+    for section in _SCANNED_SECTIONS:
         for ioc in iocs.get(section, []):
             needle = str(ioc.get("value", "")).lower().strip() if isinstance(ioc, dict) else ""
             if not needle:

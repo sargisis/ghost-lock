@@ -229,6 +229,19 @@ def cmd_audit(args: argparse.Namespace) -> None:
     path = report_mod.write_report(html)
     ok(f"Отчёт: {path}")
 
+    step("Уведомление в Telegram…")
+    from ghost_lock.modules import telegram_notify
+    device_name = info.get("DeviceName") or "iPhone"
+    top = [(f.weight, f.value, Path(f.location).name) for f in result.findings[:5]]
+    if telegram_notify.notify_audit(
+        verdict_en=verdict_en, verdict_ru=verdict_ru, score=result.score,
+        device=device_name, files_scanned=result.files_scanned,
+        findings_top=top, report_path=str(path),
+    ):
+        ok("Отправлено.")
+    else:
+        print(dim("[~] Telegram не настроен (setup-telegram) или недоступен — пропускаю."))
+
     print(bold("\nДальше — закрепи защиту на самом телефоне:"))
     print(f"  {cyan('python3 ghost_lock/ghost_lock.py profiles')}          — инструкция")
     print(f"  {cyan('python3 ghost_lock/ghost_lock.py profiles --serve')}  — раздать профили по Wi-Fi")
@@ -241,6 +254,45 @@ def iocs_version() -> str:
             return json.load(fh).get("_meta", {}).get("version", "?")
     except Exception:
         return "?"
+
+
+def cmd_setup_telegram(args: argparse.Namespace) -> None:
+    banner()
+    from ghost_lock.modules import telegram_notify
+    step("Шаг 1. Проверяю токен у Telegram…")
+    try:
+        me = telegram_notify._call(args.token, "getMe")
+    except Exception as e:  # noqa: BLE001
+        die(f"Токен не работает: {e}")
+    bot_name = me.get("username", "?")
+    ok(f"Бот: @{bot_name}")
+
+    step("Шаг 2. Открой Telegram, найди бота и отправь ему любое сообщение (например «привет»)…")
+    print(dim("    Жду до 60 секунд…"))
+    chat_id = None
+    for attempt in range(4):
+        try:
+            chat_id = telegram_notify.extract_chat_id(telegram_notify.get_updates(args.token))
+        except Exception as e:  # noqa: BLE001
+            print(yellow(f"[~] Сбой связи ({e}), пробую ещё…"))
+        if chat_id is not None:
+            break
+        print(dim(f"    Попытка {attempt + 1}/4: сообщений пока нет…"))
+    if chat_id is None:
+        die("Сообщение от тебя не пришло. Напиши боту в Telegram и запусти команду снова.")
+
+    cfg_path = telegram_notify._save_config(args.token, chat_id)
+    ok(f"Конфиг сохранён: {cfg_path} (права 600)")
+
+    step("Шаг 3. Тестовое сообщение…")
+    try:
+        telegram_notify.send_message(
+            "✅ <b>ghost-lock подключён</b>\nТеперь после каждого аудита ты будешь получать вердикт сюда.",
+            token=args.token, chat_id=chat_id,
+        )
+        ok(f"Готово! Алерты будут приходить в чат с @{bot_name}.")
+    except Exception as e:  # noqa: BLE001
+        print(yellow(f"[~] Конфиг сохранён, но тест не ушёл: {e}"))
 
 
 PROFILE_INSTRUCTIONS = """
@@ -305,6 +357,15 @@ def cmd_profiles(args: argparse.Namespace) -> None:
     except profile_gen.PresetError as e:
         die(str(e))
 
+    try:
+        wcf_path = profile_gen.generate_wcf()
+        import json as _json
+        with open(config.IOC_PATH, encoding="utf-8") as fh:
+            n_all = sum(len(_json.load(fh).get(s, [])) for s in ("domains",))
+        ok(f"Профиль-стена собран: {wcf_path.relative_to(PROJECT_ROOT)} · топ-{profile_gen.WCF_MAX_DOMAINS} доменов из базы")
+    except Exception as e:  # noqa: BLE001
+        print(yellow(f"[~] Профиль-стену не собрали (база IOC?): {e}"))
+
     print(PROFILE_INSTRUCTIONS + _preset_table() + "\n")
 
     if not args.serve:
@@ -345,22 +406,28 @@ def qr_url(url: str) -> None:
 def cmd_update_ioc(_args: argparse.Namespace) -> None:
     banner()
     from ghost_lock.modules import ioc_update
-    step("Обновление базы IOC из публичных фидов (AmnestyTech и др.)…")
+    step("Тяну все STIX-фиды AmnestyTech (+ текстовые списки)…")
     try:
-        rep = ioc_update.update_from_feeds()
+        rep = ioc_update.update()
     except Exception as e:  # noqa: BLE001
         die(f"Обновление не удалось: {e}")
-    for feed, (found, after) in rep.items():
-        if feed == "_total":
-            ok(f"Итого добавлено {found} индикаторов, доменов в базе теперь {after}.")
-        elif found == 0:
-            print(yellow(f"[~] {feed}: новых индикаторов нет или фид пуст"))
+
+    for section, n in rep["added"].items():
+        if n:
+            ok(f"{section}: +{n} новых")
         else:
-            print(green(f"[+] {feed}: найдено {found} доменов"))
+            print(dim(f"[~] {section}: без изменений"))
+    for err in rep["errors"][:5]:
+        print(yellow(f"[~] фид недоступен: {err}"))
+    total = sum(rep["totals"].values())
+    print(bold(f"\nИтого индикаторов в базе: {total}"))
+
     step("Проверка целостности базы…")
-    iocs = load_iocs()
-    n = sum(len(iocs.get(k, [])) for k in ("domains", "jailbreak_artifacts", "spyware_strings", "stalkerware_profiles", "spyware_bundles"))
-    ok(f"База валидна, записей: {n}")
+    try:
+        load_iocs()
+        ok("База валидна.")
+    except Exception as e:  # noqa: BLE001
+        die(f"База повреждена после обновления: {e}")
 
 
 # ── точка входа ──────────────────────────────────────────────────────────────
@@ -386,6 +453,10 @@ def main() -> None:
     p_prof.set_defaults(func=cmd_profiles)
 
     sub.add_parser("update-ioc", help="обновить базу индикаторов из публичных фидов").set_defaults(func=cmd_update_ioc)
+
+    p_tg = sub.add_parser("setup-telegram", help="подключить Telegram-алерты (нужен токен от @BotFather)")
+    p_tg.add_argument("--token", required=True, help="токен бота из @BotFather")
+    p_tg.set_defaults(func=cmd_setup_telegram)
 
     args = parser.parse_args()
     try:

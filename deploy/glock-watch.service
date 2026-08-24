@@ -1,0 +1,11 @@
+[Unit]
+Description=glock-watch: авто-аудит iPhone при подключении по USB
+After=default.target
+
+[Service]
+ExecStart=%h/.local/bin/glock-watch -exec "%h/.local/bin/ghost-lock-audit"
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

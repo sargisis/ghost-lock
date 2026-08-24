@@ -233,5 +233,32 @@ class TestLoadRealDatabase(unittest.TestCase):
         self.assertIn(str(config.THRESHOLDS["critical"]), meta["critical"])
 
 
+class TestStixSections(unittest.TestCase):
+    """Секции из STIX-фидов: processes исключена из скана, emails/file_paths работают."""
+
+    def test_processes_section_is_not_scanned(self):
+        """STIX принёс общие имена демонов Apple (roleaccountd и др.) —
+        секция processes исключена, иначе шквал ложных срабатываний."""
+        from ghost_lock.modules import spyware_scan
+        iocs = {
+            "processes": [{"value": "roleaccountd", "weight": 6, "source": "stix"}],
+            "domains": [],
+        }
+        res = spyware_scan.scan_text(iocs, "roleaccountd exited due to JetsamEvent", "t.txt")
+        self.assertEqual(res, [])
+
+    def test_emails_and_file_paths_are_scanned(self):
+        from ghost_lock.modules import spyware_scan
+        iocs = {
+            "emails": [{"value": "ops@evil.net", "weight": 7, "source": "stix"}],
+            "file_paths": [{"value": "/private/var/implant.dylib", "weight": 6, "source": "stix"}],
+            "domains": [],
+        }
+        text = 'contact "ops@evil.net" then load /private/var/implant.dylib'
+        findings = spyware_scan.scan_text(iocs, text, "t.txt")
+        values = {f.value for f in findings}
+        self.assertEqual(values, {"ops@evil.net", "/private/var/implant.dylib"})
+
+
 if __name__ == "__main__":
     unittest.main()

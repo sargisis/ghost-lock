@@ -138,3 +138,119 @@ def generate(preset_name: str | None = None, nextdns_id: str | None = None,
     dest = dest or config.DNS_SHIELD_PROFILE
     dest.write_text(content, encoding="utf-8")
     return dest
+
+
+# ── Web Content Filter: блокировка доменов шпионов на уровне WebKit ─────────
+
+# Фиксированные UUID для стабильности профиля между перегенерациями
+PAYLOAD_UUID_WCF = "7e1a2c55-9f0b-4d3a-b8c1-2a6f5e4d9c11"
+PROFILE_UUID_WCF = "3b9d8f02-51c7-4e88-a2d4-90c6f1b7e34a"
+# Обязателен на несупервизируемых устройствах (iOS 16+)
+CONTENT_FILTER_UUID_WCF = "a1e5f7c2-4b3d-4e8f-9c6a-7d2b1e0f8a44"
+
+# Лимит разумного размера: тысячи доменов тормозят фильтр без пользы
+WCF_MAX_DOMAINS = 500
+
+
+def _esc(s: str) -> str:
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def select_wcf_domains(iocs: dict, cap: int = WCF_MAX_DOMAINS) -> list[str]:
+    """Топ C2-доменов по весу, без allowlist-ложняков, отсортирован, уникален."""
+    import re as _re
+    allow = [_re.compile(p) for p in iocs.get("allowlist", []) if isinstance(p, str)]
+    seen: dict[str, int] = {}
+    for entry in iocs.get("domains", []):
+        if not isinstance(entry, dict):
+            continue
+        value = str(entry.get("value", "")).strip().lower()
+        weight = int(entry.get("weight", 5))
+        if not value or "." not in value:
+            continue
+        if any(rx.search(value) for rx in allow):
+            continue
+        # максимум по домену, если он встречается в нескольких секциях/фидах
+        seen[value] = max(seen.get(value, 0), weight)
+    ranked = sorted(seen.items(), key=lambda kv: (-kv[1], kv[0]))
+    return [d for d, _ in ranked[:cap]]
+
+
+def render_wcf_profile(domains: list[str]) -> str:
+    items = "".join(f"\n        <string>{_esc(d)}</string>" for d in domains)
+    return """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  ghost-lock :: Spyware Domain Wall
+
+  Встроенный фильтр веб-контента iOS (без сторонних приложений):
+  Safari и все WebKit-приложения не откроют домены известной шпионской
+  инфраструктуры (C2 Pegasus/Predator/FinFisher/... из базы ghost-lock).
+
+  Это ВТОРОЙ эшелон после DNS Shield: работает даже если телефон ушёл
+  с нашего DNS (чужой Wi-Fi, сбой DoH).
+
+  Обновление списка: перегенерируй профиль командой
+    python3 ghost_lock/ghost_lock.py profiles
+  и переустанови файл как обычно.
+-->
+<dict>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>PayloadType</key>
+      <string>com.apple.webcontent-filter</string>
+      <key>FilterType</key>
+      <string>BuiltIn</string>
+      <key>ContentFilterUUID</key>
+      <string>{{CF_UUID}}</string>
+      <key>DenyListURLs</key>
+      <array>{{DOMAIN_ITEMS}}
+      </array>
+      <key>PayloadDisplayName</key>
+      <string>ghost-lock Spyware Domain Wall</string>
+      <key>PayloadIdentifier</key>
+      <string>cc.ghostlock.wcf.spywarewall</string>
+      <key>PayloadUUID</key>
+      <string>{{PAYLOAD_UUID}}</string>
+      <key>PayloadVersion</key>
+      <integer>1</integer>
+    </dict>
+  </array>
+  <key>PayloadDescription</key>
+  <string>ghost-lock: блокировка {{N}} доменов шпионского ПО на уровне веб-движка iOS. Второй эшелон защиты поверх DNS Shield.</string>
+  <key>PayloadDisplayName</key>
+  <string>ghost-lock Spyware Domain Wall ({{N}})</string>
+  <key>PayloadIdentifier</key>
+  <string>cc.ghostlock.wcf.profile</string>
+  <key>PayloadOrganization</key>
+  <string>ghost-lock</string>
+  <key>PayloadRemovalDisallowed</key>
+  <false/>
+  <key>PayloadType</key>
+  <string>Configuration</string>
+  <key>PayloadUUID</key>
+  <string>{{PROFILE_UUID}}</string>
+  <key>PayloadVersion</key>
+  <integer>1</integer>
+</dict>
+</plist>
+""".replace("{{DOMAIN_ITEMS}}", items) \
+       .replace("{{N}}", str(len(domains))) \
+       .replace("{{CF_UUID}}", CONTENT_FILTER_UUID_WCF) \
+       .replace("{{PAYLOAD_UUID}}", PAYLOAD_UUID_WCF) \
+       .replace("{{PROFILE_UUID}}", PROFILE_UUID_WCF)
+
+
+def generate_wcf(dest: Path | None = None, cap: int = WCF_MAX_DOMAINS,
+                 ioc_path: Path | None = None) -> Path:
+    """Собирает web_filter.mobileconfig из актуальной базы IOC."""
+    import json
+    path = ioc_path or config.IOC_PATH
+    with open(path, encoding="utf-8") as fh:
+        iocs = json.load(fh)
+    domains = select_wcf_domains(iocs, cap=cap)
+    dest = dest or config.WEB_FILTER_PROFILE
+    dest.write_text(render_wcf_profile(domains), encoding="utf-8")
+    return dest

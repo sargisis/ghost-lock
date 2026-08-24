@@ -13,6 +13,7 @@ TEMPLATE_PATH = PROJECT_ROOT / "report_template.html"
 PROFILES_DIR = PROJECT_ROOT / "profiles"
 
 DNS_SHIELD_PROFILE = PROFILES_DIR / "dns_shield.mobileconfig"
+WEB_FILTER_PROFILE = PROFILES_DIR / "web_filter.mobileconfig"
 HARDENED_PROFILE = PROFILES_DIR / "hardened.mobileconfig"
 
 # ── Пресеты DNS-щита ──────────────────────────────────────────────────────────

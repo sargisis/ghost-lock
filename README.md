@@ -51,6 +51,7 @@ profiles         generate phone profiles (+ --serve to serve over Wi-Fi)
 setup-telegram   connect alerts (needs a token from @BotFather)
 update-ioc       refresh the indicator database from AmnestyTech STIX feeds
 dns-check        test encrypted DNS on the current network (phone presets + this PC)
+sysdiagnose      pull a sysdiagnose over the cable and check shutdown.log
 ```
 
 ## Inside the audit
@@ -115,6 +116,23 @@ inspects:
   restrictions iOS actually enforces (`EffectiveUserSettings.plist`).
 
 Needs an encrypted backup: in an unencrypted one the files have hashed names.
+
+### shutdown.log (sysdiagnose)
+
+On every reboot iOS logs the processes that delayed shutdown. Kaspersky's
+2024 "iShutdown" research showed Pegasus, Reign and Predator implants
+lingering there from unusual places (`/private/var/db/`, `/private/var/tmp/`),
+and the log survives implant removal while keeping many reboots of history.
+ghost-lock reads only `shutdown.log` from the newest `sysdiagnose_*.tar.gz`,
+in memory, and flags such paths plus IOC process names and file paths.
+
+Take a sysdiagnose on the phone (both volume buttons + side button for
+1–1.5 s, a short vibration; it takes ~10 minutes to build). The next `audit`
+picks it up, or pull and check it right away over the cable:
+
+```bash
+python3 ghost_lock/ghost_lock.py sysdiagnose
+```
 
 ### Per-process network statistics (deep mode)
 
@@ -298,6 +316,7 @@ ghost_lock/
 │   ├── dns_check.py         # DoH reachability, PC DNS leaks
 │   ├── usb_profiles.py      # profiles over the cable (pymobiledevice3)
 │   ├── host_check.py        # pairing records, disk encryption, Portmaster
+│   ├── shutdown_log.py      # iShutdown: shutdown.log from sysdiagnose
 │   ├── profile_gen.py       # generates every .mobileconfig
 │   ├── telegram_notify.py   # alerts
 │   ├── ioc_update.py        # STIX parser + feed merging

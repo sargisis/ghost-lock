@@ -51,6 +51,7 @@ profiles         генерация профилей для телефона (+ 
 setup-telegram   подключение алертов (нужен токен от @BotFather)
 update-ioc       обновление базы индикаторов из STIX-фидов AmnestyTech
 dns-check        проверка зашифрованного DNS в текущей сети (пресеты телефона + этот ПК)
+sysdiagnose      снять sysdiagnose по кабелю и проверить shutdown.log
 ```
 
 ## Аудит: что происходит внутри
@@ -95,6 +96,24 @@ Telegram — скан шифротекста никогда не выдаётс�
 бэкап даёт предупреждение: он лежит на диске открыто; включи шифрование:
 `idevicebackup2 -i -u <UDID> encryption on`.
 
+
+### shutdown.log (sysdiagnose)
+
+При каждой перезагрузке iOS записывает процессы, которые мешали выключению.
+Исследование Kaspersky «iShutdown» (2024) показало: импланты Pegasus, Reign и
+Predator висели там из нестандартных мест (`/private/var/db/`,
+`/private/var/tmp/`), а журнал переживает удаление импланта и хранит историю
+многих перезагрузок. ghost-lock читает только `shutdown.log` из самого свежего
+`sysdiagnose_*.tar.gz`, в памяти, и помечает такие пути, а также имена
+процессов и пути из базы IOC.
+
+Сними sysdiagnose на телефоне (обе кнопки громкости + боковая на 1–1,5 с,
+короткая вибрация; собирается ~10 минут). Следующий `audit` его подхватит —
+или забери и проверь сразу по кабелю:
+
+```bash
+python3 ghost_lock/ghost_lock.py sysdiagnose
+```
 
 ### Сетевая активность процессов (deep-режим)
 
@@ -299,6 +318,7 @@ ghost_lock/
 │   ├── dns_check.py         # доступность DoH, утечки DNS на ПК
 │   ├── usb_profiles.py      # профили по кабелю (pymobiledevice3)
 │   ├── host_check.py        # записи сопряжения, шифрование диска, Portmaster
+│   ├── shutdown_log.py      # iShutdown: shutdown.log из sysdiagnose
 │   ├── profile_gen.py       # генератор всех .mobileconfig
 │   ├── telegram_notify.py   # алерты
 │   ├── ioc_update.py        # STIX-парсер + слияние фидов

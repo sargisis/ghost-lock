@@ -183,6 +183,60 @@ def _pick_udid(requested: str | None) -> str:
     return udids[0]
 
 
+SYSDIAGNOSE_HOWTO = ("на телефоне зажми обе кнопки громкости + боковую на 1–1,5 с "
+                     "(короткая вибрация), подожди ~10 мин и запусти аудит снова — "
+                     "или: python3 ghost_lock/ghost_lock.py sysdiagnose")
+
+
+def _shutdown_step(crash_dir: Path, result) -> None:
+    from ghost_lock.modules import shutdown_log
+    rep = shutdown_log.audit_dir(crash_dir, load_iocs())
+    if rep is None:
+        print(dim(f"[~] sysdiagnose не найден — {SYSDIAGNOSE_HOWTO}"))
+        return
+    for good, line in rep.lines:
+        mark = green("[+]") if good else (yellow("[~]") if good is None else red("[!]"))
+        print(f"{mark} {line}")
+    for f in rep.findings[:10]:
+        print(f"    • [{f.weight}] {f.value} — {f.context}")
+    result.findings.extend(rep.findings)
+
+
+def cmd_sysdiagnose(args: argparse.Namespace) -> None:
+    """Снять sysdiagnose по кабелю и сразу проверить shutdown.log.
+
+    Pull a sysdiagnose over the cable and check its shutdown.log right away.
+    """
+    banner()
+    from ghost_lock.modules import usb_profiles
+    config.ensure_dirs()
+    udid = _pick_udid(args.udid)
+    dest = config.CRASH_DIR / udid / "sysdiagnose"
+    dest.mkdir(parents=True, exist_ok=True)
+    exe = usb_profiles.pmd3()
+    if not exe:
+        die("Нужен pymobiledevice3 (" + usb_profiles.INSTALL_HINT + ").\n"
+            "Без него: сними sysdiagnose кнопками и запусти обычный audit — он заберёт архив.")
+    print(bold("\nСейчас на телефоне: зажми ОБЕ кнопки громкости + боковую на 1–1,5 с."))
+    print("Телефон коротко завибрирует. Архив собирается ~5–10 минут — не отключай кабель.\n")
+    step("Жду архив sysdiagnose…")
+    try:
+        proc = subprocess.run([exe, "crash", "sysdiagnose", str(dest), "--timeout", "900",
+                               "--udid", udid], timeout=960)
+    except subprocess.TimeoutExpired:
+        die("Архив не появился за 15 минут. Нажимал кнопки? Попробуй ещё раз.")
+    if proc.returncode != 0:
+        die("pymobiledevice3 не смог забрать sysdiagnose (см. сообщение выше).")
+    ok(f"Архив сохранён в {dest}")
+    step("Анализ shutdown.log…")
+    from ghost_lock.modules.spyware_scan import ScanResult
+    res = ScanResult()
+    _shutdown_step(dest, res)
+    verdict_en, verdict_ru = res.verdict()
+    color = {"clean": green, "suspicious": yellow, "critical": red}[verdict_en.lower()]
+    print(color(f"\n=== shutdown.log: {verdict_en} / {verdict_ru} (score {res.score}) ==="))
+
+
 AUDIT_LOCK = config.WORKDIR / "audit.lock"
 
 
@@ -249,6 +303,9 @@ def cmd_audit(args: argparse.Namespace) -> None:
     crash_names = sorted(p.name for p in Path(crash_dir).iterdir() if p.is_file())
 
     incomplete_notes: list[str] = []
+
+    step("shutdown.log из sysdiagnose (следы имплантов при перезагрузках)…")
+    _shutdown_step(Path(crash_dir), result)
 
     step("IOC-скан (домены C2, джейлбрейк-артефакты, стalkerware-профили, фишинг-эвристики)…")
     result = run_scan(info, crash_dir)
@@ -753,6 +810,10 @@ def main() -> None:
     p_prof.add_argument("--preset", choices=sorted(config.RESOLVER_PRESETS), help=f"пресет DNS-щита (по умолчанию: {config.DEFAULT_RESOLVER_PRESET})")
     p_prof.add_argument("--nextdns-id", help="ID конфига NextDNS для пресета nextdns")
     p_prof.set_defaults(func=cmd_profiles)
+
+    p_sd = sub.add_parser("sysdiagnose", help="снять sysdiagnose по кабелю и проверить shutdown.log")
+    p_sd.add_argument("--udid", help="UDID конкретного телефона")
+    p_sd.set_defaults(func=cmd_sysdiagnose)
 
     p_dns = sub.add_parser("dns-check", help="проверить зашифрованный DNS в текущей сети (телефон и ПК)")
     p_dns.add_argument("--preset", choices=sorted(config.RESOLVER_PRESETS), help="пресет для конфига ПК")

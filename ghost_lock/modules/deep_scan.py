@@ -180,9 +180,11 @@ def run(udid: str, info: dict[str, Any],
 
 
 def _profile_audit(result: ScanResult, plain_dir: Path) -> None:
-    """Аудит профилей/сертификатов по расшифрованной копии (до её удаления).
+    """Системные проверки по расшифрованной копии (до её удаления): профили,
+    сертификаты, супервизия, сетевая статистика процессов.
 
-    Profile/certificate audit over the decrypted copy (before it is deleted).
+    System checks over the decrypted copy (before it is deleted): profiles,
+    certificates, supervision, per-process network statistics.
     """
     from .. import config
     from . import profile_audit, profile_gen
@@ -192,12 +194,21 @@ def _profile_audit(result: ScanResult, plain_dir: Path) -> None:
     rep = profile_audit.audit(
         plain_dir, iocs, hardened_profile=config.HARDENED_PROFILE,
         current_wcf_domains=profile_gen.select_wcf_domains(iocs))
-    print("  [*] Профили, сертификаты, супервизия:")
-    for ok, line in rep.lines:
-        mark = {True: "[+]", False: "[!]", None: "[~]"}[ok]
-        print(f"      {mark} {line}")
+    _print_lines("Профили, сертификаты, супервизия:", rep.lines)
     result.findings.extend(rep.findings)
     result.recommendations.extend(rep.recommendations)
+
+    from . import netusage
+    net = netusage.audit(plain_dir, iocs)
+    _print_lines("Сетевая активность процессов:", net.lines)
+    result.findings.extend(net.findings)
+
+
+def _print_lines(title: str, lines: list[tuple[bool | None, str]]) -> None:
+    print(f"  [*] {title}")
+    for ok, line in lines:
+        mark = {True: "[+]", False: "[!]", None: "[~]"}[ok]
+        print(f"      {mark} {line}")
 
 
 # ── Шум бэкапа: списки блокировки и слова-эвристики ─────────────────────────

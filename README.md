@@ -111,6 +111,18 @@ inspects:
 
 Needs an encrypted backup: in an unencrypted one the files have hashed names.
 
+### Per-process network statistics (deep mode)
+
+iOS records every process that went online in `DataUsage.sqlite`; an implant's
+name stays there even after its binary is gone. The process name is a
+dedicated field, so it is matched **exactly** against the IOC `processes`
+section (not as a substring, which is why that section stays off for crash
+logs). Names that coincide with real Apple daemons (`roleaccountd`,
+`updaterd`) are reported at low weight for manual review; process paths are
+also checked against `file_paths`. Traffic rows that point at a deleted
+process row — a cleanup trace MVT looks for — are counted and shown as
+information until a clean-phone baseline is known.
+
 ## Audit history & diff
 
 Every audit is stored in `~/.local/share/ghost-lock/history.db`.
@@ -202,7 +214,7 @@ Current database size: **~4,300 indicators**. Entry format:
 
 ## Tests
 
-217 Python tests (scanner, allowlist, STIX, history/diff, hygiene, WCF profile,
+223 Python tests (scanner, allowlist, STIX, history/diff, hygiene, WCF profile,
 Telegram, CLI, integration) plus Go tests (scan engine, uevent parser):
 
 ```bash
@@ -226,6 +238,7 @@ ghost_lock/
 │   ├── deep_scan.py         # full backup + forensics sweep
 │   ├── backup_crypto.py     # encrypted iOS backup decryption
 │   ├── profile_audit.py     # profiles, certificates, supervision
+│   ├── netusage.py          # per-process network statistics
 │   ├── profile_gen.py       # generates every .mobileconfig
 │   ├── telegram_notify.py   # alerts
 │   ├── ioc_update.py        # STIX parser + feed merging
@@ -237,7 +250,7 @@ go/
 ├── cmd/glock-scan/          # scanner CLI (JSON output)
 ├── cmd/glock-watch/         # auto-audit daemon
 └── internal/{ioc,scan,watch}/
-tests/                       # 217 unit tests
+tests/                       # 223 unit tests
 deploy/                      # systemd user unit + installer
 ```
 

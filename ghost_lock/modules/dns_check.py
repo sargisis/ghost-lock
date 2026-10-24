@@ -1,7 +1,9 @@
 """Проверка зашифрованного DNS из текущей сети: пресеты телефона и сам ПК.
 
-Зачем: провайдер/роутер может блокировать DoH/DoT (проверено на живой сети:
-роутер отбивал Quad9, Cloudflare, Google и весь порт 853). Профиль без
+Зачем: провайдер/роутер может блокировать DoH/DoT. Оговорка: Portmaster на
+самом ПК тоже режет программам соединения с известными DNS-серверами (защита
+от обхода) — на живой машине именно он «блокировал» Quad9, Cloudflare, Google
+и порт 853, а не роутер. При запущенном Portmaster команда предупреждает. Профиль без
 фолбэка в такой сети оставит телефон без интернета, а systemd-resolved на ПК
 молча уйдёт на открытый DNS роутера. Здесь это видно заранее.
 
@@ -11,8 +13,10 @@ iOS с ServerAddresses.
 
 Checking encrypted DNS from the current network: phone presets and the PC.
 
-Why: an ISP/router may block DoH/DoT (verified on a live network: the router
-rejected Quad9, Cloudflare, Google and all of port 853). A no-fallback profile
+Why: an ISP/router may block DoH/DoT. Caveat: Portmaster on the PC itself also
+blocks apps from reaching well-known DNS servers (bypass prevention) — on the
+live machine it, not the router, "blocked" Quad9, Cloudflare, Google and port
+853. The command warns when Portmaster is running. A no-fallback profile
 leaves the phone offline on such a network, and systemd-resolved on the PC
 silently falls back to the router's plain DNS. This makes it visible upfront.
 

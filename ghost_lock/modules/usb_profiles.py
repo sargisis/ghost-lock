@@ -55,6 +55,13 @@ class UsbProfileError(RuntimeError):
     pass
 
 
+class LockdownModeError(UsbProfileError):
+    """iOS отказывает в установке из-за Lockdown Mode — дальше пробовать бессмысленно.
+
+    iOS refuses the install because of Lockdown Mode — no point trying further.
+    """
+
+
 def pmd3() -> str | None:
     env = os.environ.get("GHOST_LOCK_PMD3")
     if env and Path(env).exists():
@@ -133,6 +140,8 @@ def install_profile(path: Path, udid: str | None = None) -> None:
     proc = _run(["profile", "install", str(path)], udid)
     if proc.returncode != 0 or "rejected" in proc.stdout + proc.stderr:
         reason = _device_error(proc)
+        if "lockdown mode" in reason.lower():
+            raise LockdownModeError(reason)
         if "not permitted" in reason or "4022" in proc.stdout + proc.stderr:
             reason += " — выключен ли Lockdown Mode?"
         raise UsbProfileError(reason)

@@ -85,6 +85,13 @@ class TestRun(unittest.TestCase):
         self.assertIn("not permitted", str(ctx.exception))
         self.assertIn("Lockdown Mode", str(ctx.exception))
 
+    def test_lockdown_mode_detected(self):
+        out = ("ERROR The device rejected the profile request: {'ErrorChain': [{'ErrorCode': 4000, "
+               "'LocalizedDescription': 'Profiles cannot be installed because Lockdown Mode is enabled'}]}")
+        with mock.patch.object(usb_profiles.subprocess, "run", return_value=proc(rc=1, err=out)):
+            with self.assertRaises(usb_profiles.LockdownModeError):
+                usb_profiles.install_profile(Path("p.mobileconfig"))
+
     def test_install_uses_install_not_store(self):
         with mock.patch.object(usb_profiles.subprocess, "run", return_value=proc()) as run:
             usb_profiles.install_profile(Path("p.mobileconfig"))

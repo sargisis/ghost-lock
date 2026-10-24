@@ -137,6 +137,20 @@ def cmd_doctor(_args: argparse.Namespace) -> None:
     except connect.DeviceError as e:
         print(yellow(f"[~] {e}"))
 
+    from ghost_lock.modules import usb_profiles
+    if usb_profiles.pmd3():
+        ok("pymobiledevice3: найден (профили по кабелю)")
+    else:
+        print(dim(f"[~] pymobiledevice3 нет — профили по кабелю недоступны: {usb_profiles.INSTALL_HINT}"))
+
+    step("Безопасность компьютера (он — ключ к телефону)…")
+    from ghost_lock.modules import host_check
+    for c in host_check.checks():
+        mark = green("[+]") if c.ok else (yellow("[~]") if c.ok is None else red("[!]"))
+        print(f"{mark} {c.title}")
+        if c.fix and c.ok is False:
+            print(f"    {cyan(c.fix)}")
+
     if problems:
         die(f"Найдено проблем: {problems}", 2)
     print(green("\nГотово к работе. Запусти: python3 ghost_lock/ghost_lock.py audit"))
@@ -563,13 +577,19 @@ def _install_profiles_usb(args: argparse.Namespace) -> None:
     print("  • телефон разблокирован и подключён кабелем")
     print(dim("  Старый DNS Shield с другим именем (…profile.<пресет>) удали вручную, иначе"
               " будет два DNS-профиля.\n"))
+    sent = 0
     for path in files:
         step(f"Отправляю {path.name}…")
         try:
             usb_profiles.install_profile(path, udid)
+        except usb_profiles.LockdownModeError:
+            print(red("[!] iOS отказала: включён Lockdown Mode. Выключи его на время установки "
+                      "(Настройки → Конфиденциальность и безопасность) и запусти снова."))
+            break
         except usb_profiles.UsbProfileError as e:
             print(red(f"[!] {path.name}: {e}"))
             continue
+        sent += 1
         try:
             input("    На телефоне: Установить → код-пароль. Затем нажми Enter здесь… ")
         except EOFError:
@@ -581,8 +601,9 @@ def _install_profiles_usb(args: argparse.Namespace) -> None:
             print(f"  {green('[+]') if p.own else red('[!]')} {p.name or p.identifier}")
     except usb_profiles.UsbProfileError as e:
         print(yellow(f"[~] Не удалось прочитать список: {e}"))
-    print(bold("\nДальше: Настройки → Основные → VPN и управление устройством → DNS →"
-               " выбери ghost-lock DNS Shield. Потом включи Lockdown Mode обратно."))
+    if sent:
+        print(bold("\nДальше: Настройки → Основные → VPN и управление устройством → DNS →"
+                   " выбери ghost-lock DNS Shield. Потом включи Lockdown Mode обратно."))
 
 
 def qr_url(url: str) -> None:
@@ -607,6 +628,13 @@ def qr_url(url: str) -> None:
 def cmd_dns_check(args: argparse.Namespace) -> None:
     banner()
     from ghost_lock.modules import dns_check
+
+    from ghost_lock.modules import host_check
+    if host_check.portmaster_running():
+        print(yellow("[!] Запущен Portmaster: он блокирует программам прямые соединения с "
+                     "известными DNS-серверами\n    (защита от обхода). Блокировки ниже могут "
+                     "быть его, а не сети — проверяй пресеты\n    с компьютера без Portmaster "
+                     "или прямо на телефоне (mullvad.net/check, browserleaks.com/dns)."))
 
     step("Пресеты DNS-щита телефона: настоящий DoH-запрос прямо на IP из профиля…")
     results = dns_check.check_presets(args.nextdns_id)

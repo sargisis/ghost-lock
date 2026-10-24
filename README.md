@@ -190,10 +190,8 @@ DNS presets:
 
 **No plain-DNS fallback, by design.** A network that blocks DoH could
 otherwise silently downgrade the phone to unencrypted DNS; instead the phone
-loses DNS on such a network. Some ISPs and routers do block the well-known
-resolvers (one tested home router rejected Quad9, Cloudflare, Google,
-NextDNS and all of port 853). Before installing, check every network the phone
-uses:
+loses DNS on such a network. Some ISPs and routers block the well-known
+resolvers, so before installing, check every network the phone uses:
 
 ```bash
 python3 ghost_lock/ghost_lock.py dns-check
@@ -205,6 +203,14 @@ It also checks the PC: `systemd-resolved` only speaks DoT (port 853), so on
 such a network it either leaks to the router's plain DNS or stops resolving.
 When that happens, `dns-check` prints a ready `dnscrypt-proxy` config that uses
 DoH on port 443 instead.
+
+> **Firewalls with DNS bypass prevention** (e.g. Portmaster) block apps —
+> including `curl` and `dnscrypt-proxy` — from reaching well-known DNS servers,
+> and resolve everything themselves. `dns-check` warns when Portmaster runs:
+> its "blocked" results are then the firewall's, not the network's. With
+> Portmaster, set the encrypted DNS server in Portmaster itself (Secure DNS →
+> DNS Servers), e.g. `doh://base.dns.mullvad.net/dns-query?ip=194.242.2.4&name=Mullvad`,
+> instead of running a second proxy.
 
 > Earlier versions wrote a `ServerFallback` key. Apple has no such key, so iOS
 > ignored it. The deep audit flags an installed profile of that version;
@@ -289,6 +295,7 @@ ghost_lock/
 │   ├── netusage.py          # per-process network statistics
 │   ├── dns_check.py         # DoH reachability, PC DNS leaks
 │   ├── usb_profiles.py      # profiles over the cable (pymobiledevice3)
+│   ├── host_check.py        # pairing records, disk encryption, Portmaster
 │   ├── profile_gen.py       # generates every .mobileconfig
 │   ├── telegram_notify.py   # alerts
 │   ├── ioc_update.py        # STIX parser + feed merging

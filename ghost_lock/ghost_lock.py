@@ -267,6 +267,20 @@ def cmd_audit(args: argparse.Namespace) -> None:
     except RuntimeError as e:
         print(yellow(f"[~] Пропускаю скан приложений: {e}"))
 
+    step("Профили на телефоне (по кабелю, без бэкапа)…")
+    from ghost_lock.modules import usb_profiles
+    if usb_profiles.pmd3():
+        try:
+            quick = usb_profiles.quick_audit(usb_profiles.list_profiles(udid), load_iocs())
+            for good, line in quick.lines:
+                mark = green("[+]") if good else (yellow("[~]") if good is None else red("[!]"))
+                print(f"{mark} {line}")
+            result.findings.extend(quick.findings)
+        except usb_profiles.UsbProfileError as e:
+            print(yellow(f"[~] Профили не прочитаны: {e}"))
+    else:
+        print(dim(f"[~] Пропускаю: нужен pymobiledevice3 ({usb_profiles.INSTALL_HINT})"))
+
     step("Гигиена безопасности…")
     from ghost_lock.modules import hygiene
     hygiene_checks = hygiene.check_hygiene(info=info, udid=udid)
@@ -501,6 +515,10 @@ def cmd_profiles(args: argparse.Namespace) -> None:
     except Exception as e:  # noqa: BLE001
         print(yellow(f"[~] Профиль-стену не собрали (база IOC?): {e}"))
 
+    if args.usb:
+        _install_profiles_usb(args)
+        return
+
     print(PROFILE_INSTRUCTIONS + _preset_table() + "\n")
 
     if not args.serve:
@@ -524,6 +542,47 @@ def cmd_profiles(args: argparse.Namespace) -> None:
         print("\n[*] Раздача остановлена.")
     finally:
         server.server_close()
+
+
+def _install_profiles_usb(args: argparse.Namespace) -> None:
+    """Профили по кабелю: по одному, с подтверждением на телефоне.
+
+    Profiles over the cable: one at a time, confirmed on the phone.
+    """
+    from ghost_lock.modules import usb_profiles
+
+    if not usb_profiles.pmd3():
+        die(f"Нужен pymobiledevice3:\n  {usb_profiles.INSTALL_HINT}")
+    udid = _pick_udid(args.udid)
+    files = [config.DNS_SHIELD_PROFILE, config.WEB_FILTER_PROFILE]
+    if args.hardened:
+        files.append(config.HARDENED_PROFILE)
+
+    print(bold("\nПеред установкой на телефоне:"))
+    print("  • Lockdown Mode ВЫКЛЮЧЕН (Настройки → Конфиденциальность и безопасность)")
+    print("  • телефон разблокирован и подключён кабелем")
+    print(dim("  Старый DNS Shield с другим именем (…profile.<пресет>) удали вручную, иначе"
+              " будет два DNS-профиля.\n"))
+    for path in files:
+        step(f"Отправляю {path.name}…")
+        try:
+            usb_profiles.install_profile(path, udid)
+        except usb_profiles.UsbProfileError as e:
+            print(red(f"[!] {path.name}: {e}"))
+            continue
+        try:
+            input("    На телефоне: Установить → код-пароль. Затем нажми Enter здесь… ")
+        except EOFError:
+            pass
+
+    step("Проверяю, что установлено…")
+    try:
+        for p in usb_profiles.list_profiles(udid):
+            print(f"  {green('[+]') if p.own else red('[!]')} {p.name or p.identifier}")
+    except usb_profiles.UsbProfileError as e:
+        print(yellow(f"[~] Не удалось прочитать список: {e}"))
+    print(bold("\nДальше: Настройки → Основные → VPN и управление устройством → DNS →"
+               " выбери ghost-lock DNS Shield. Потом включи Lockdown Mode обратно."))
 
 
 def qr_url(url: str) -> None:
@@ -657,6 +716,11 @@ def main() -> None:
 
     p_prof = sub.add_parser("profiles", help="инструкция по установке защиты на телефон")
     p_prof.add_argument("--serve", action="store_true", help="раздать профили по локальной сети")
+    p_prof.add_argument("--usb", action="store_true",
+                        help="установить профили по кабелю (нужен pymobiledevice3)")
+    p_prof.add_argument("--hardened", action="store_true",
+                        help="с --usb: установить и hardened.mobileconfig")
+    p_prof.add_argument("--udid", help="с --usb: UDID конкретного телефона")
     p_prof.add_argument("--port", type=int, default=8808, help="порт для --serve (по умолчанию 8808)")
     p_prof.add_argument("--preset", choices=sorted(config.RESOLVER_PRESETS), help=f"пресет DNS-щита (по умолчанию: {config.DEFAULT_RESOLVER_PRESET})")
     p_prof.add_argument("--nextdns-id", help="ID конфига NextDNS для пресета nextdns")

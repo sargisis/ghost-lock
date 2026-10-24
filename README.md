@@ -62,6 +62,10 @@ dns-check        test encrypted DNS on the current network (phone presets + this
    (e.g. the legit `Pegasus.framework` shipped inside iOS itself).
 3. **App inventory scan** against known stalkerware bundle IDs
    (mSpy/FlexiSPY/CocoSpy/uMobix/EyeZy…).
+   **Installed configuration profiles** are listed over the cable in seconds
+   (needs `pymobiledevice3`, see below): anything not from ghost-lock is
+   flagged on every audit, not only in deep mode. Names only — what a foreign
+   profile contains (MDM, certificate, VPN) is shown by `audit --deep`.
 4. **Security hygiene**: everything readable over cable (activation state,
    passcode status), with honest "unreadable" marks where iOS refuses to talk.
 5. **iOS freshness check** via api.ipsw.me — an outdated OS means known
@@ -141,9 +145,25 @@ The top diff lines ride along in every Telegram alert.
 ## Phone profiles
 
 ```bash
-python3 ghost_lock/ghost_lock.py profiles --serve   # serve over Wi-Fi
+python3 ghost_lock/ghost_lock.py profiles --usb     # over the cable (recommended)
+python3 ghost_lock/ghost_lock.py profiles --serve   # over Wi-Fi
 # or simply send the files from ghost_lock/profiles/ to yourself
 ```
+
+**Over the cable** (`--usb`) needs no network: serving over Wi-Fi often fails
+silently because the PC firewall drops inbound connections or the router
+isolates Wi-Fi clients. It uses `pymobiledevice3`, installed into its own
+environment (Debian/Ubuntu block system-wide pip, PEP 668):
+
+```bash
+python3 -m venv ~/.local/share/ghost-lock/venv
+~/.local/share/ghost-lock/venv/bin/pip install pymobiledevice3
+```
+
+Profiles are sent one by one; confirm each on the phone (Install → passcode).
+`--hardened` adds the restrictions profile. Verified on iOS 27: the phone
+rejects `profile store` for a DNS payload ("not permitted", error 4022), while
+`profile install` shows the normal install prompt — ghost-lock uses the latter.
 
 On the phone: open the file → Install. Verify under Settings → General →
 VPN & Device Management. iOS will warn "Profile is not signed" — expected for
@@ -268,6 +288,7 @@ ghost_lock/
 │   ├── profile_audit.py     # profiles, certificates, supervision
 │   ├── netusage.py          # per-process network statistics
 │   ├── dns_check.py         # DoH reachability, PC DNS leaks
+│   ├── usb_profiles.py      # profiles over the cable (pymobiledevice3)
 │   ├── profile_gen.py       # generates every .mobileconfig
 │   ├── telegram_notify.py   # alerts
 │   ├── ioc_update.py        # STIX parser + feed merging

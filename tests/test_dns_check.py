@@ -104,6 +104,14 @@ class TestPcDns(unittest.TestCase):
         self.assertEqual([(i.link, i.kind) for i in issues], [("wlp1s0", "leak")])
 
 
+    def test_local_proxy_not_a_leak(self):
+        links = [dns_check.ResolvedLink("Global", ["127.0.2.1"], default_route=True),
+                 dns_check.ResolvedLink("wlp1s0", [], default_route=True)]
+        modes = {"Global": "no", "wlp1s0": "no"}
+        self.assertEqual(dns_check.pc_dns_issues(links, modes, reachable=lambda s: False), [])
+        self.assertTrue(dns_check.uses_local_proxy(links))
+
+
 class TestStamp(unittest.TestCase):
     def test_doh_stamp_layout(self):
         stamp = dns_check.doh_stamp("https://base.dns.mullvad.net/dns-query", "194.242.2.4")

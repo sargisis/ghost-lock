@@ -576,7 +576,11 @@ def cmd_dns_check(args: argparse.Namespace) -> None:
     links, modes = sysdns
     issues = dns_check.pc_dns_issues(links, modes)
     if not issues:
-        ok("DNS компьютера зашифрован, серверы DoT доступны.")
+        if dns_check.uses_local_proxy(links):
+            ok("DNS компьютера идёт через локальный прокси (dnscrypt-proxy). "
+               "Проверь, что он отвечает: resolvectl query example.com")
+        else:
+            ok("DNS компьютера зашифрован, серверы DoT доступны.")
         return
     for i in issues:
         print(red(f"[!] {i.link}: {i.note} ({', '.join(i.servers)})"))
@@ -587,8 +591,14 @@ def cmd_dns_check(args: argparse.Namespace) -> None:
     print("      /etc/dnscrypt-proxy/dnscrypt-proxy.toml:\n")
     for ln in dns_check.dnscrypt_snippet(args.preset or default).splitlines():
         print(f"        {ln}")
-    print("\n      Затем отправь весь DNS через прокси и запрети DNS из DHCP:")
-    print(f"        {cyan('nmcli con mod <имя сети> ipv4.dns 127.0.2.1 ipv4.ignore-auto-dns yes ipv6.ignore-auto-dns yes')}")
+    print("\n      /etc/systemd/resolved.conf, секция [Resolve] — весь DNS в прокси.")
+    print("      DoT здесь выключается: до прокси запрос не выходит из компьютера,")
+    print("      а наружу его шифрует сам прокси (DoH):\n")
+    for ln in ("DNS=127.0.2.1", "Domains=~.", "DNSOverTLS=no", "DNSSEC=allow-downgrade"):
+        print(f"        {ln}")
+    print("\n      Запрети DNS роутера из DHCP и перезапусти:")
+    print(f"        {cyan('nmcli con mod <имя сети> ipv4.ignore-auto-dns yes ipv6.ignore-auto-dns yes')}")
+    print(f"        {cyan('sudo systemctl restart systemd-resolved && nmcli con up <имя сети>')}")
     print(dim("      Имя сети: nmcli -t -f NAME con show --active. После — снова dns-check."))
 
 

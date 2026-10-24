@@ -231,6 +231,21 @@ def dot_reachable(server: str, timeout: float = 3.0) -> bool:
         return False
 
 
+def _is_loopback(server: str) -> bool:
+    import ipaddress
+    host = server.split("#", 1)[0].split("%", 1)[0]
+    if host.count(":") == 1:  # 127.0.2.1:53
+        host = host.rsplit(":", 1)[0]
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def uses_local_proxy(links: list[ResolvedLink]) -> bool:
+    return any(l.servers and all(_is_loopback(x) for x in l.servers) for l in links)
+
+
 @dataclass
 class PcDnsIssue:
     link: str
@@ -259,6 +274,12 @@ def pc_dns_issues(links: list[ResolvedLink], modes: dict[str, str],
         if not l.servers or (l.name != "Global" and not l.default_route):
             continue
         servers = l.servers
+        if all(_is_loopback(x) for x in servers):
+            # локальный прокси (dnscrypt-proxy): шифрует он сам, участок до него
+            # не выходит из компьютера — это не утечка
+            # a local proxy (dnscrypt-proxy) encrypts by itself; the hop to it
+            # never leaves the computer — not a leak
+            continue
         mode = modes.get(l.name, modes.get("Global", "no"))
         if mode in ("no", "opportunistic"):
             issues.append(PcDnsIssue(l.name, "leak", servers,

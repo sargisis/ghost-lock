@@ -578,7 +578,7 @@ def cmd_dns_check(args: argparse.Namespace) -> None:
     if not issues:
         if dns_check.uses_local_proxy(links):
             ok("DNS компьютера идёт через локальный прокси (dnscrypt-proxy). "
-               "Проверь, что он отвечает: resolvectl query example.com")
+               "Проверь, что он отвечает: resolvectl query github.com")
         else:
             ok("DNS компьютера зашифрован, серверы DoT доступны.")
         return

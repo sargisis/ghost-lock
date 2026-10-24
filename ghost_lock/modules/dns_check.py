@@ -304,18 +304,35 @@ def system_dns() -> tuple[list[ResolvedLink], dict[str, str]] | None:
 
 
 def dnscrypt_snippet(preset: str = config.DEFAULT_RESOLVER_PRESET) -> str:
-    """Готовый конфиг dnscrypt-proxy (DoH) под выбранный пресет.
+    """Полный /etc/dnscrypt-proxy/dnscrypt-proxy.toml (DoH) под выбранный пресет.
 
-    A ready dnscrypt-proxy (DoH) config for the chosen preset.
+    Отличия от штатного файла Debian/Ubuntu: сервер — пресет ghost-lock со
+    вшитым IP (stamp), журналы запросов выключены (штатный пишет каждый
+    запрос на диск), списки серверов не скачиваются (их зеркала и bootstrap-
+    резолверы могут быть заблокированы так же, как DoH).
+
+    A complete /etc/dnscrypt-proxy/dnscrypt-proxy.toml (DoH) for the preset.
+    Unlike the stock Debian/Ubuntu file: the server is the ghost-lock preset
+    with a pinned IP (stamp), query logs are off (the stock file writes every
+    query to disk), and no server lists are downloaded (their mirrors and
+    bootstrap resolvers may be blocked just like DoH).
     """
     p = config.RESOLVER_PRESETS[preset]
     stamp = doh_stamp(p["doh"], p["addresses"][0])
     return (
-        "# listen_addresses не трогай: в Ubuntu/Debian адрес 127.0.2.1:53\n"
-        "# задаёт dnscrypt-proxy.socket, а в конфиге должно остаться []\n"
+        f"# ghost-lock: DoH через пресет «{preset}» ({p['doh']})\n"
+        "# Пустой listen_addresses: адрес 127.0.2.1:53 задаёт dnscrypt-proxy.socket\n"
+        "listen_addresses = []\n"
         f"server_names = ['ghostlock-{preset}']\n"
-        "doh_servers = true\nrequire_nolog = true\nrequire_dnssec = false\n"
-        "ignore_system_dns = true\n\n"
+        "doh_servers = true\n"
+        "dnscrypt_servers = false\n"
+        "require_nolog = true\n"
+        "ignore_system_dns = true\n"
+        "netprobe_timeout = 10\n"
+        "\n"
+        "# Журналы запросов ([query_log], [nx_log]) намеренно выключены.\n"
+        "# [sources] нет: сервер задан ниже, списки скачивать не нужно.\n"
+        "\n"
         "[static]\n"
         f"  [static.'ghostlock-{preset}']\n"
         f"  stamp = '{stamp}'\n"

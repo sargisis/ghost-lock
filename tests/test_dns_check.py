@@ -120,10 +120,15 @@ class TestStamp(unittest.TestCase):
         self.assertEqual(int.from_bytes(raw[1:9], "little"), 2)  # без логов / no logs
         self.assertIn(b"\x0b194.242.2.4\x00\x14base.dns.mullvad.net\x0a/dns-query", raw)
 
-    def test_snippet(self):
+    def test_snippet_is_full_private_config(self):
+        import tomllib
         snip = dns_check.dnscrypt_snippet("mullvad")
-        self.assertIn("sdns://", snip)
-        self.assertIn("127.0.2.1:53", snip)
+        cfg = tomllib.loads(snip)
+        self.assertEqual(cfg["listen_addresses"], [])  # адрес задаёт systemd-сокет
+        self.assertEqual(cfg["server_names"], ["ghostlock-mullvad"])
+        self.assertTrue(cfg["static"]["ghostlock-mullvad"]["stamp"].startswith("sdns://"))
+        for section in ("query_log", "nx_log", "sources"):
+            self.assertNotIn(section, cfg, f"{section} должен быть выключен")
 
 
 if __name__ == "__main__":

@@ -588,7 +588,8 @@ def cmd_dns_check(args: argparse.Namespace) -> None:
         "    systemd-resolved умеет только DoT (порт 853), а сеть может его резать.\n"
         "    Надёжнее локальный DoH-прокси (порт 443, как у телефона):\n"))
     print(f"      {cyan('sudo apt install dnscrypt-proxy')}")
-    print("      /etc/dnscrypt-proxy/dnscrypt-proxy.toml:\n")
+    print("      Замени /etc/dnscrypt-proxy/dnscrypt-proxy.toml целиком на этот файл")
+    print("      (штатный пишет журнал всех запросов и шлёт в заблокированный Cloudflare):\n")
     for ln in dns_check.dnscrypt_snippet(args.preset or default).splitlines():
         print(f"        {ln}")
     print("\n      /etc/systemd/resolved.conf, секция [Resolve] — весь DNS в прокси.")
@@ -598,7 +599,9 @@ def cmd_dns_check(args: argparse.Namespace) -> None:
         print(f"        {ln}")
     print("\n      Запрети DNS роутера из DHCP и перезапусти:")
     print(f"        {cyan('nmcli con mod <имя сети> ipv4.ignore-auto-dns yes ipv6.ignore-auto-dns yes')}")
-    print(f"        {cyan('sudo systemctl restart systemd-resolved && nmcli con up <имя сети>')}")
+    print(f"        {cyan('sudo systemctl restart dnscrypt-proxy systemd-resolved && nmcli con up <имя сети>')}")
+    print(dim("      Ловушка: если DNS уже не работает, apt не скачает пакет. Временно\n"
+              "      (до перезапуска resolved) разреши DNS роутера: sudo resolvectl dnsovertls <интерфейс> no"))
     print(dim("      Имя сети: nmcli -t -f NAME con show --active. После — снова dns-check."))
 
 

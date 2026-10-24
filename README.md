@@ -92,6 +92,25 @@ is never reported as "clean". An unencrypted backup triggers a warning: it sits
 on disk in plaintext; enable encryption with
 `idevicebackup2 -i -u <UDID> encryption on`.
 
+### Profile & certificate audit (deep mode)
+
+Stalkerware and "corporate" surveillance often arrive as a **configuration
+profile**, not an app. While the decrypted backup is still in place, deep mode
+inspects:
+
+- **Foreign profiles**, weighted by power: MDM (15), root certificate or global
+  proxy (10), VPN (8), third-party DNS or web filter (7), plus the
+  `stalkerware_profiles` IOC prefixes. A profile counts as ghost-lock's only if
+  its *contents* match too (payload type, DoH server from our presets), since
+  the `cc.ghostlock.*` name is trivial to fake.
+- **User-trusted certificates** in `TrustStore.sqlite3` (MITM risk).
+- **Supervision** (`CloudConfigurationDetails.plist`).
+- **Your own coverage**: which ghost-lock profiles are installed, whether the
+  Domain Wall list matches the current IOC database, and how many `hardened`
+  restrictions iOS actually enforces (`EffectiveUserSettings.plist`).
+
+Needs an encrypted backup: in an unencrypted one the files have hashed names.
+
 ## Audit history & diff
 
 Every audit is stored in `~/.local/share/ghost-lock/history.db`.
@@ -183,7 +202,7 @@ Current database size: **~4,300 indicators**. Entry format:
 
 ## Tests
 
-207 Python tests (scanner, allowlist, STIX, history/diff, hygiene, WCF profile,
+217 Python tests (scanner, allowlist, STIX, history/diff, hygiene, WCF profile,
 Telegram, CLI, integration) plus Go tests (scan engine, uevent parser):
 
 ```bash
@@ -206,6 +225,7 @@ ghost_lock/
 │   ├── history.py           # SQLite history + diff
 │   ├── deep_scan.py         # full backup + forensics sweep
 │   ├── backup_crypto.py     # encrypted iOS backup decryption
+│   ├── profile_audit.py     # profiles, certificates, supervision
 │   ├── profile_gen.py       # generates every .mobileconfig
 │   ├── telegram_notify.py   # alerts
 │   ├── ioc_update.py        # STIX parser + feed merging
@@ -217,7 +237,7 @@ go/
 ├── cmd/glock-scan/          # scanner CLI (JSON output)
 ├── cmd/glock-watch/         # auto-audit daemon
 └── internal/{ioc,scan,watch}/
-tests/                       # 207 unit tests
+tests/                       # 217 unit tests
 deploy/                      # systemd user unit + installer
 ```
 

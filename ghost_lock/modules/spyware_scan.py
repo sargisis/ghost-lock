@@ -38,6 +38,9 @@ class ScanResult:
     # True — часть данных не проверена (напр. не расшифрован бэкап): «чисто» не гарантировано
     # True — part of the data went unchecked (e.g. backup not decrypted): "clean" is not guaranteed
     incomplete: bool = False
+    # рекомендации для отчёта (напр. из аудита профилей)
+    # report recommendations (e.g. from the profile audit)
+    recommendations: list[str] = field(default_factory=list)
 
     @property
     def score(self) -> int:

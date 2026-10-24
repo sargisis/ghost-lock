@@ -125,6 +125,13 @@ class TestBackupCrypto(unittest.TestCase):
         self.assertFalse((self.root / "escape.txt").exists())
         self.assertTrue((out / "HomeDomain/escape.txt").exists())
 
+    def test_include_filter(self):
+        out = self.root / "out"
+        stats = backup_crypto.decrypt_backup(
+            self.bdir, PASSWORD, out, include=lambda d, r: r.endswith("sms.db"))
+        self.assertEqual(stats.decrypted, 1)
+        self.assertFalse((out / "HomeDomain/escape.txt").exists())
+
     def test_wrong_password(self):
         with self.assertRaises(backup_crypto.WrongPasswordError):
             backup_crypto.decrypt_backup(self.bdir, "wrong", self.root / "out")

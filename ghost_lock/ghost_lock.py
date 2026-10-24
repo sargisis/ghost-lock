@@ -196,6 +196,7 @@ def cmd_audit(args: argparse.Namespace) -> None:
         result.findings.extend(deep_result.findings)
         result.files_scanned += deep_result.files_scanned
         result.incomplete = result.incomplete or deep_result.incomplete
+        result.recommendations.extend(deep_result.recommendations)
         if deep_result.stats_note:
             print(yellow(f"[~] {deep_result.stats_note}"))
         if deep_result.incomplete:
@@ -282,6 +283,7 @@ def cmd_audit(args: argparse.Namespace) -> None:
         recommendations.insert(0, os_note)
     for n in incomplete_notes:
         recommendations.insert(0, f"Аудит неполный — {n}")
+    recommendations[:0] = result.recommendations
     html = report_mod.build_report(
         device_rows=connect.summary(info),
         findings_rows_html=render_findings_table(result.findings),

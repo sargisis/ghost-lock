@@ -171,11 +171,33 @@ def run(udid: str, info: dict[str, Any],
             note += f", ошибок: {stats.failed}"
         print(note + ". Скан…")
         result = _report_noise(_prefix(run_scan(info, plain_dir), plain_dir))
+        _profile_audit(result, plain_dir)
     finally:
         # расшифрованная копия не должна переживать скан
         # the decrypted copy must not outlive the scan
         shutil.rmtree(plain_dir, ignore_errors=True)
     return result
+
+
+def _profile_audit(result: ScanResult, plain_dir: Path) -> None:
+    """Аудит профилей/сертификатов по расшифрованной копии (до её удаления).
+
+    Profile/certificate audit over the decrypted copy (before it is deleted).
+    """
+    from .. import config
+    from . import profile_audit, profile_gen
+    from .spyware_scan import load_iocs
+
+    iocs = load_iocs()
+    rep = profile_audit.audit(
+        plain_dir, iocs, hardened_profile=config.HARDENED_PROFILE,
+        current_wcf_domains=profile_gen.select_wcf_domains(iocs))
+    print("  [*] Профили, сертификаты, супервизия:")
+    for ok, line in rep.lines:
+        mark = {True: "[+]", False: "[!]", None: "[~]"}[ok]
+        print(f"      {mark} {line}")
+    result.findings.extend(rep.findings)
+    result.recommendations.extend(rep.recommendations)
 
 
 # ── Шум бэкапа: списки блокировки и слова-эвристики ─────────────────────────

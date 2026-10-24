@@ -36,6 +36,7 @@ import struct
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
+from typing import Callable
 
 # Сканер всё равно пропускает файлы крупнее — нет смысла их расшифровывать
 # The scanner skips larger files anyway — no point decrypting them
@@ -204,10 +205,14 @@ class DecryptStats:
     failed: int = 0
 
 
-def decrypt_backup(backup_dir: Path, password: str, out_dir: Path) -> DecryptStats:
+def decrypt_backup(backup_dir: Path, password: str, out_dir: Path,
+                   include: Callable[[str, str], bool] | None = None) -> DecryptStats:
     """Расшифровывает бэкап в out_dir с настоящими путями <domain>/<path>.
 
+    include(domain, relativePath) — фильтр: расшифровать только нужные файлы.
+
     Decrypts the backup into out_dir using real <domain>/<path> paths.
+    include(domain, relativePath) — filter: decrypt only the files needed.
     """
     with open(backup_dir / "Manifest.plist", "rb") as fh:
         manifest = plistlib.load(fh)
@@ -226,7 +231,8 @@ def decrypt_backup(backup_dir: Path, password: str, out_dir: Path) -> DecryptSta
     with tempfile.NamedTemporaryFile(dir=out_dir, suffix=".db") as tmp_db:
         tmp_db.write(db_plain)
         tmp_db.flush()
-        conn = sqlite3.connect(f"file:{tmp_db.name}?mode=ro", uri=True)
+        # immutable=1: без файлов -shm/-wal рядом / no -shm/-wal files next to it
+        conn = sqlite3.connect(f"file:{tmp_db.name}?mode=ro&immutable=1", uri=True)
         try:
             rows = conn.execute(
                 "SELECT fileID, domain, relativePath, file FROM Files WHERE flags = 1"
@@ -238,6 +244,8 @@ def decrypt_backup(backup_dir: Path, password: str, out_dir: Path) -> DecryptSta
         src = backup_dir / file_id[:2] / file_id
         dest_rel = _safe_rel(domain, rel)
         if dest_rel is None or not src.is_file():
+            continue
+        if include is not None and not include(domain or "", rel or ""):
             continue
         enc_key, size = _file_meta(meta or b"")
         if src.stat().st_size > DECRYPT_MAX_BYTES:

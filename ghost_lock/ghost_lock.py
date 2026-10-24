@@ -527,14 +527,18 @@ def cmd_profiles(args: argparse.Namespace) -> None:
 
 
 def qr_url(url: str) -> None:
-    """QR-код, если установлен пакет qrcode (pip install qrcode).
+    """QR-код, если установлен пакет qrcode.
 
-    QR code, if the qrcode package is installed (pip install qrcode).
+    QR code, if the qrcode package is installed.
     """
     try:
         import qrcode  # type: ignore
     except ImportError:
-        print(dim("(подсказка: pip install qrcode — и здесь будет QR-код для камеры)"))
+        # Debian/Ubuntu запрещают pip в системный Python (PEP 668) — даём apt
+        # Debian/Ubuntu forbid pip into the system Python (PEP 668) — suggest apt
+        hint = ("sudo apt install python3-qrcode" if shutil.which("apt")
+                else "pip install qrcode")
+        print(dim(f"(подсказка: {hint} — и здесь будет QR-код для камеры)"))
         return
     qr = qrcode.QRCode(border=1)
     qr.add_data(url)

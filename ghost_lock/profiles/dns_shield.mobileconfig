@@ -40,7 +40,7 @@
       <key>PayloadDisplayName</key>
       <string>ghost-lock DNS Shield · mullvad</string>
       <key>PayloadIdentifier</key>
-      <string>cc.ghostlock.dnsshield.mullvad</string>
+      <string>cc.ghostlock.dnsshield</string>
       <key>PayloadUUID</key>
       <string>fc4fdd46-8662-42c1-aa22-e4637bcb2fcf</string>
       <key>PayloadVersion</key>
@@ -52,7 +52,7 @@
   <key>PayloadDisplayName</key>
   <string>ghost-lock DNS Shield (mullvad)</string>
   <key>PayloadIdentifier</key>
-  <string>cc.ghostlock.dnsshield.profile.mullvad</string>
+  <string>cc.ghostlock.dnsshield.profile</string>
   <key>PayloadOrganization</key>
   <string>ghost-lock</string>
   <key>PayloadRemovalDisallowed</key>

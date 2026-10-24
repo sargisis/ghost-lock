@@ -90,6 +90,14 @@ class TestRenderedProfile(unittest.TestCase):
         payload = self.render()["PayloadContent"][0]
         self.assertFalse(payload["ProhibitDisablement"], "профиль должен быть снимаемым")
 
+    def test_identifier_same_for_every_preset(self):
+        # иначе смена пресета ставит второй DNS-профиль рядом, а не заменяет
+        # otherwise a preset switch installs a second DNS profile alongside
+        a, b = self.render("family"), self.render("mullvad")
+        self.assertEqual(a["PayloadIdentifier"], b["PayloadIdentifier"])
+        self.assertEqual(a["PayloadContent"][0]["PayloadIdentifier"],
+                         b["PayloadContent"][0]["PayloadIdentifier"])
+
     def test_uuids_stable_across_presets(self):
         a, b = self.render("family"), self.render("security")
         self.assertEqual(a["PayloadUUID"], b["PayloadUUID"])

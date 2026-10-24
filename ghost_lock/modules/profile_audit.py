@@ -34,7 +34,9 @@ from typing import Any
 from .models import Finding
 
 OWN_PROFILES = {
-    "dnsshield": ("cc.ghostlock.dnsshield.profile.", "DNS Shield"),
+    # без точки в конце: и старые «…profile.<пресет>», и новый «…profile»
+    # no trailing dot: matches both old "…profile.<preset>" and new "…profile"
+    "dnsshield": ("cc.ghostlock.dnsshield.profile", "DNS Shield"),
     "wcf": ("cc.ghostlock.wcf.profile", "Spyware Domain Wall"),
     "hardened": ("cc.ghostlock.hardened.profile", "Hardened"),
 }

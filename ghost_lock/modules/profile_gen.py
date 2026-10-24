@@ -24,8 +24,13 @@ from pathlib import Path
 
 from .. import config
 
-# Фиксированные UUID: стабильны между перегенерациями, iOS считает профиль тем же.
-# Fixed UUIDs: stable across regenerations so iOS treats it as the same profile.
+# Фиксированные UUID и идентификатор БЕЗ имени пресета: iOS опознаёт профиль
+# по PayloadIdentifier, и смена пресета должна ЗАМЕНЯТЬ профиль, а не ставить
+# второй рядом (раньше в идентификаторе был пресет — получались дубли).
+# Fixed UUIDs and an identifier WITHOUT the preset name: iOS recognizes a
+# profile by PayloadIdentifier, and switching presets must REPLACE it rather
+# than install a second one alongside (the preset used to be in the
+# identifier, which produced duplicates).
 PAYLOAD_UUID_DNS = "fc4fdd46-8662-42c1-aa22-e4637bcb2fcf"
 PROFILE_UUID = "5285d060-b4a6-4801-a404-9b673a40dcaf"
 
@@ -70,7 +75,7 @@ TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
       <key>PayloadDisplayName</key>
       <string>ghost-lock DNS Shield · {{PRESET_NAME}}</string>
       <key>PayloadIdentifier</key>
-      <string>cc.ghostlock.dnsshield.{{PRESET_NAME}}</string>
+      <string>cc.ghostlock.dnsshield</string>
       <key>PayloadUUID</key>
       <string>{{PAYLOAD_UUID}}</string>
       <key>PayloadVersion</key>
@@ -82,7 +87,7 @@ TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
   <key>PayloadDisplayName</key>
   <string>ghost-lock DNS Shield ({{PRESET_NAME}})</string>
   <key>PayloadIdentifier</key>
-  <string>cc.ghostlock.dnsshield.profile.{{PRESET_NAME}}</string>
+  <string>cc.ghostlock.dnsshield.profile</string>
   <key>PayloadOrganization</key>
   <string>ghost-lock</string>
   <key>PayloadRemovalDisallowed</key>

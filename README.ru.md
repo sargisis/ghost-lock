@@ -209,8 +209,10 @@ python3 ghost_lock/ghost_lock.py dns-check
 > резолвят всё сами. `dns-check` предупреждает, если запущен Portmaster: его
 > «блокировки» — это файрвол, а не сеть. С Portmaster зашифрованный DNS-сервер
 > задаётся в нём самом (Secure DNS → DNS Servers), например
-> `doh://base.dns.mullvad.net/dns-query?ip=194.242.2.4&name=Mullvad`, а не
-> вторым прокси.
+> `dot://base.dns.mullvad.net?ip=194.242.2.4&name=Mullvad`, а не
+> вторым прокси. Именно DoT: запись Mullvad DoH Portmaster помечал как
+> неработающую (DoH-сервер Mullvad говорит только по HTTP/2). И выключи в
+> Portmaster откат на открытый DNS сети.
 
 > Прежние версии писали ключ `ServerFallback`. У Apple такого ключа нет, iOS
 > его игнорировала. Deep-аудит замечает установленный профиль этой версии —

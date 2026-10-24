@@ -128,5 +128,5 @@ def checks() -> list[HostCheck]:
 
     if portmaster_running():
         out.append(HostCheck(None, "Portmaster перехватывает DNS компьютера: DNS-сервер "
-                                   "(напр. Mullvad DoH) задаётся в его настройках Secure DNS"))
+                                   "(напр. dot://base.dns.mullvad.net?ip=194.242.2.4) задаётся в его Secure DNS"))
     return out

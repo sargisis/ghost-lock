@@ -209,8 +209,10 @@ DoH on port 443 instead.
 > and resolve everything themselves. `dns-check` warns when Portmaster runs:
 > its "blocked" results are then the firewall's, not the network's. With
 > Portmaster, set the encrypted DNS server in Portmaster itself (Secure DNS →
-> DNS Servers), e.g. `doh://base.dns.mullvad.net/dns-query?ip=194.242.2.4&name=Mullvad`,
-> instead of running a second proxy.
+> DNS Servers), e.g. `dot://base.dns.mullvad.net?ip=194.242.2.4&name=Mullvad`,
+> instead of running a second proxy. Use DoT there: Portmaster marked the
+> Mullvad DoH entry as failing (Mullvad's DoH endpoint speaks HTTP/2 only).
+> Also turn off Portmaster's fallback to the network's plain DNS server.
 
 > Earlier versions wrote a `ServerFallback` key. Apple has no such key, so iOS
 > ignored it. The deep audit flags an installed profile of that version;

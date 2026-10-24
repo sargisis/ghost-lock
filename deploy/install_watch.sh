@@ -29,7 +29,12 @@ sed -e "s|%h|$HOME|g" \
 
 echo "[4/4] Активация…"
 systemctl --user daemon-reload
-systemctl --user enable --now glock-watch.service
+# restart, а не enable --now: --now не трогает уже работающую службу,
+# и после обновления остался бы старый бинарник
+# restart, not enable --now: --now leaves a running service alone, so an
+# update would keep the old binary running
+systemctl --user enable glock-watch.service
+systemctl --user restart glock-watch.service
 
 if command -v loginctl >/dev/null && ! loginctl show-user "$USER" 2>/dev/null | grep -q Linger=yes; then
     echo

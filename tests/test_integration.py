@@ -80,7 +80,8 @@ class TestCli(unittest.TestCase):
         proc = self.run_cli("profiles")
         self.assertEqual(proc.returncode, 0, proc.stderr)
         raw = (PROJECT_ROOT / "ghost_lock/profiles/dns_shield.mobileconfig").read_text()
-        self.assertIn("ServerFallback", raw)
+        self.assertIn("ServerAddresses", raw)
+        self.assertNotIn("ServerFallback", raw)
         self.assertNotIn("{{", raw)
 
     def test_profiles_unknown_preset_fails_cleanly(self):

@@ -380,7 +380,7 @@ PROFILE_INSTRUCTIONS = """
 Как поставить щит на телефон (2 минуты):
 
   1. Раздай профили по сети:
-       python3 ghost_lock/ghost_lock.py profiles --serve [--preset family]
+       python3 ghost_lock/ghost_lock.py profiles --serve [--preset mullvad]
   2. На айфоне открой Safari: http://<IP_компа>:8808/dns_shield.mobileconfig
      (IP покажет команда --serve). Профиль скачается.
   3. Настройки → Загруженный профиль → Установить → код-пароль → Готово.
@@ -388,10 +388,13 @@ PROFILE_INSTRUCTIONS = """
      устройством → DNS = «ghost-lock DNS Shield».
   5. Повтори шаги 2–4 для hardened.mobileconfig (жёсткие ограничения).
 
-Почему интернет не сломается:
-  • В профиле прописан ServerFallback — обычные DNS-серверы ТОГО ЖЕ
-    фильтрующего вендора. Если DoH-сервер ляжет, iOS молча перейдёт на них,
-    политика фильтрации сохранится, сайты продолжат открываться.
+Важно про сеть:
+  • Фолбэка на открытый DNS нет: если сеть блокирует DoH-сервер пресета,
+    интернета на телефоне не будет. Сначала проверь, какие пресеты проходят
+    в твоих сетях (дома, на работе):  python3 ghost_lock/ghost_lock.py dns-check
+  • В профиле прописаны IP самого DoH-сервера — чужая сеть не видит и не
+    подменяет запрос «где DoH-сервер».
+  • Установка профиля требует временно выключить Lockdown Mode.
   • Профиль можно снять в любой момент: Настройки → Основное → VPN и
     управление устройством.
 
@@ -487,6 +490,57 @@ def qr_url(url: str) -> None:
     qr.print_ascii(invert=True)
 
 
+def cmd_dns_check(args: argparse.Namespace) -> None:
+    banner()
+    from ghost_lock.modules import dns_check
+
+    step("Пресеты DNS-щита телефона: настоящий DoH-запрос прямо на IP из профиля…")
+    results = dns_check.check_presets(args.nextdns_id)
+    working: dict[str, int] = {}
+    for r in results:
+        mark = green("[+]") if r.ok else red("[!]")
+        ms = f" · {r.ms:.0f} мс" if r.ok else ""
+        print(f"  {mark} {r.preset:<10} {r.address:<16} {r.detail}{ms}")
+        if r.ok:
+            working[r.preset] = working.get(r.preset, 0) + 1
+
+    default = config.DEFAULT_RESOLVER_PRESET
+    if default in working:
+        ok(f"Пресет по умолчанию «{default}» работает в этой сети.")
+    elif working:
+        alt = next(iter(working))
+        print(red(f"[!] Пресет по умолчанию «{default}» в этой сети заблокирован. "
+                  f"Работает, например: --preset {alt}"))
+    else:
+        print(red("[!] Ни один DoH-пресет не проходит: сеть блокирует зашифрованный DNS. "
+                  "Профиль без фолбэка здесь оставит телефон без интернета."))
+    print(dim("    Проверь так каждую сеть, где бывает телефон: дом, работа, кафе."))
+
+    step("DNS самого компьютера (systemd-resolved)…")
+    sysdns = dns_check.system_dns()
+    if sysdns is None:
+        print(yellow("[~] resolvectl недоступен — проверка DNS компьютера только для Linux "
+                     "с systemd-resolved."))
+        return
+    links, modes = sysdns
+    issues = dns_check.pc_dns_issues(links, modes)
+    if not issues:
+        ok("DNS компьютера зашифрован, серверы DoT доступны.")
+        return
+    for i in issues:
+        print(red(f"[!] {i.link}: {i.note} ({', '.join(i.servers)})"))
+    print(yellow(
+        "    systemd-resolved умеет только DoT (порт 853), а сеть может его резать.\n"
+        "    Надёжнее локальный DoH-прокси (порт 443, как у телефона):\n"))
+    print(f"      {cyan('sudo apt install dnscrypt-proxy')}")
+    print("      /etc/dnscrypt-proxy/dnscrypt-proxy.toml:\n")
+    for ln in dns_check.dnscrypt_snippet(args.preset or default).splitlines():
+        print(f"        {ln}")
+    print("\n      Затем отправь весь DNS через прокси и запрети DNS из DHCP:")
+    print(f"        {cyan('nmcli con mod <имя сети> ipv4.dns 127.0.2.1 ipv4.ignore-auto-dns yes ipv6.ignore-auto-dns yes')}")
+    print(dim("      Имя сети: nmcli -t -f NAME con show --active. После — снова dns-check."))
+
+
 def cmd_update_ioc(_args: argparse.Namespace) -> None:
     banner()
     from ghost_lock.modules import ioc_update
@@ -537,6 +591,11 @@ def main() -> None:
     p_prof.add_argument("--preset", choices=sorted(config.RESOLVER_PRESETS), help=f"пресет DNS-щита (по умолчанию: {config.DEFAULT_RESOLVER_PRESET})")
     p_prof.add_argument("--nextdns-id", help="ID конфига NextDNS для пресета nextdns")
     p_prof.set_defaults(func=cmd_profiles)
+
+    p_dns = sub.add_parser("dns-check", help="проверить зашифрованный DNS в текущей сети (телефон и ПК)")
+    p_dns.add_argument("--preset", choices=sorted(config.RESOLVER_PRESETS), help="пресет для конфига ПК")
+    p_dns.add_argument("--nextdns-id", help="ID конфига NextDNS для проверки пресета nextdns")
+    p_dns.set_defaults(func=cmd_dns_check)
 
     sub.add_parser("update-ioc", help="обновить базу индикаторов из публичных фидов").set_defaults(func=cmd_update_ioc)
 

@@ -285,6 +285,23 @@ def audit(root: Path, iocs: dict[str, Any], hardened_profile: Path | None = None
                 f"Профиль ghost-lock {title} не установлен — "
                 "python3 ghost_lock/ghost_lock.py profiles")
 
+    shield = next((p for p in rep.profiles if p.own
+                   and p.identifier.startswith(OWN_PROFILES["dnsshield"][0])), None)
+    if shield is not None:
+        dns = [pl.get("DNSSettings") or {} for pl in shield.payloads]
+        # старые версии писали несуществующий ServerFallback и не писали
+        # ServerAddresses: телефон искал DoH-сервер через открытый DNS сети
+        # old versions wrote the non-existent ServerFallback and no
+        # ServerAddresses: the phone looked the DoH server up via plain DNS
+        if any("ServerFallback" in d or not d.get("ServerAddresses") for d in dns):
+            rep.lines.append((None, "DNS Shield старой версии: адрес DoH-сервера "
+                                    "ищется через открытый DNS сети"))
+            rep.recommendations.append(
+                "Переустанови DNS Shield: новая версия содержит IP DoH-сервера и не "
+                "откатывается на открытый DNS. Сначала: python3 ghost_lock/ghost_lock.py dns-check")
+        else:
+            rep.lines.append((True, "DNS Shield актуальной версии"))
+
     wall = next((p for p in rep.profiles if p.identifier.startswith(OWN_PROFILES["wcf"][0])), None)
     if wall is not None and current_wcf_domains is not None:
         installed_domains = {str(d).lower() for pl in wall.payloads

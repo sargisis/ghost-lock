@@ -50,6 +50,7 @@ audit            полный аудит (--udid <UDID>, --deep для глуб�
 profiles         генерация профилей для телефона (+ --serve для раздачи по Wi-Fi)
 setup-telegram   подключение алертов (нужен токен от @BotFather)
 update-ioc       обновление базы индикаторов из STIX-фидов AmnestyTech
+dns-check        проверка зашифрованного DNS в текущей сети (пресеты телефона + этот ПК)
 ```
 
 ## Аудит: что происходит внутри
@@ -152,7 +153,7 @@ VPN и управление устройством. iOS покажет «Про�
 
 | Файл | Тип payload | Что делает |
 |---|---|---|
-| `dns_shield.mobileconfig` | DNS Settings (DoH) | Зашифрованный DNS + фильтрация на уровне резолвера. `ServerFallback` страхует от «сломанного интернета» при сбое DoH |
+| `dns_shield.mobileconfig` | DNS Settings (DoH) | Зашифрованный DNS + фильтрация на уровне резолвера. IP DoH-сервера зашиты в профиль (`ServerAddresses`), фолбэка на открытый DNS нет (`AllowFailover=false`) |
 | `web_filter.mobileconfig` | Web Content Filter | **Spyware Domain Wall**: топ-500 C2-доменов Pegasus/Predator/FinFisher блокируются на уровне Safari/WebKit — второй эшелон, работающий даже мимо нашего DNS |
 | `hardened.mobileconfig` | Restrictions | Системные ограничения поверх Lockdown Mode |
 
@@ -160,9 +161,32 @@ VPN и управление устройством. iOS покажет «Про�
 
 | Пресет | Блокирует | Пример |
 |---|---|---|
-| `family` *(default)* | малварь, фишинг, взрослый контент (CleanBrowsing Family) | — |
+| `mullvad` *(default)* | малварь, реклама, трекеры (Mullvad Base, без логов) | — |
+| `quad9` | малварь, фишинг (Quad9, без логов IP) | `profiles --preset quad9` |
+| `family` | малварь, фишинг, взрослый контент (CleanBrowsing Family) | — |
 | `cf-family` / `security` | варианты Cloudflare без контентной части | — |
 | `nextdns --nextdns-id <ID>` | что настроишь в панели my.nextdns.io | `profiles --preset nextdns --nextdns-id abc123` |
+
+**Фолбэка на открытый DNS нет — намеренно.** Иначе сеть, блокирующая DoH,
+могла бы тихо перевести телефон на нешифрованный DNS; вместо этого в такой
+сети телефон остаётся без DNS. Провайдеры и роутеры действительно режут
+известные резолверы (проверенный домашний роутер отбивал Quad9, Cloudflare,
+Google, NextDNS и весь порт 853). Перед установкой проверь каждую сеть, где
+бывает телефон:
+
+```bash
+python3 ghost_lock/ghost_lock.py dns-check
+```
+
+Команда шлёт настоящий DoH-запрос прямо на зашитый IP каждого пресета (через
+`curl`, он умеет и HTTP/2) с проверкой сертификата — ровно как сделает iOS.
+Заодно проверяет ПК: `systemd-resolved` умеет только DoT (порт 853), поэтому в
+такой сети он либо утекает на открытый DNS роутера, либо перестаёт отвечать.
+Тогда `dns-check` выводит готовый конфиг `dnscrypt-proxy` с DoH на порту 443.
+
+> Прежние версии писали ключ `ServerFallback`. У Apple такого ключа нет, iOS
+> его игнорировала. Deep-аудит замечает установленный профиль этой версии —
+> переустанови его.
 
 Стена доменов пересобирается из актуальной базы IOC командой `profiles`
 — переустанови файл, чтобы обновить список.
@@ -212,7 +236,7 @@ FinFisher, DoNOT, NovaSpy, Wintego…) через GitHub API: домены, emai
 
 ## Тесты
 
-223 Python-тестов (сканер, allowlist, STIX, история/diff, гигиена, WCF-профиль,
+238 Python-тестов (сканер, allowlist, STIX, история/diff, гигиена, WCF-профиль,
 Telegram, CLI, интеграция) + Go-тесты (движок скана, парсер uevent):
 
 ```bash
@@ -237,6 +261,7 @@ ghost_lock/
 │   ├── backup_crypto.py     # расшифровка зашифрованного бэкапа iOS
 │   ├── profile_audit.py     # профили, сертификаты, супервизия
 │   ├── netusage.py          # сетевая активность процессов
+│   ├── dns_check.py         # доступность DoH, утечки DNS на ПК
 │   ├── profile_gen.py       # генератор всех .mobileconfig
 │   ├── telegram_notify.py   # алерты
 │   ├── ioc_update.py        # STIX-парсер + слияние фидов
@@ -248,7 +273,7 @@ go/
 ├── cmd/glock-scan/          # CLI сканера (JSON out)
 ├── cmd/glock-watch/         # демон авто-аудита
 └── internal/{ioc,scan,watch}/
-tests/                       # 223 юнит-тестов
+tests/                       # 238 юнит-тестов
 deploy/                      # systemd user-юнит + установщик
 ```
 

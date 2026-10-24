@@ -2,13 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <!--
-  ghost-lock :: DNS Shield (пресет: family)
+  ghost-lock :: DNS Shield (пресет: mullvad)
 
-  Блокирует на уровне DNS: 18+, малварь, фишинг, proxy/VPN, SafeSearch.
+  Блокирует на уровне DNS: малварь, реклама, трекеры · Mullvad, без логов.
 
-  Защита от «сломанного интернета»: если DoH-сервер недоступен, iOS
-  автоматически переходит на обычный DNS (ServerFallback) Того же вендора
-  с той же фильтрующей политикой.
+  ServerAddresses — IP самого DoH-сервера (без открытого DNS-запроса).
+  Фолбэка на открытый DNS нет (AllowFailover=false): если сеть блокирует
+  DoH, интернета не будет — проверь сеть командой dns-check.
 
   Отключить: Настройки → Основное → VPN и управление устройством → DNS.
 -->
@@ -24,12 +24,13 @@
         <key>DNSProtocol</key>
         <string>HTTPS</string>
         <key>ServerURL</key>
-        <string>https://doh.cleanbrowsing.org/doh/family-filter/</string>
-        <key>ServerFallback</key>
+        <string>https://base.dns.mullvad.net/dns-query</string>
+        <key>ServerAddresses</key>
         <array>
-          <string>185.228.168.168</string>
-          <string>185.228.169.168</string>
+          <string>194.242.2.4</string>
         </array>
+        <key>AllowFailover</key>
+        <false/>
       </dict>
 
       <!-- Без супервизии игнорируется; профиль всегда можно снять вручную -->
@@ -37,9 +38,9 @@
       <false/>
 
       <key>PayloadDisplayName</key>
-      <string>ghost-lock DNS Shield · family</string>
+      <string>ghost-lock DNS Shield · mullvad</string>
       <key>PayloadIdentifier</key>
-      <string>cc.ghostlock.dnsshield.family</string>
+      <string>cc.ghostlock.dnsshield.mullvad</string>
       <key>PayloadUUID</key>
       <string>fc4fdd46-8662-42c1-aa22-e4637bcb2fcf</string>
       <key>PayloadVersion</key>
@@ -47,11 +48,11 @@
     </dict>
   </array>
   <key>PayloadDescription</key>
-  <string>ghost-lock: зашифрованный DNS (DoH), блокировка 18+, малварь, фишинг, proxy/VPN, SafeSearch. Фолбэк на plain-DNS того же вендора — интернет не пропадёт при сбое DoH.</string>
+  <string>ghost-lock: зашифрованный DNS (DoH), блокировка малварь, реклама, трекеры · Mullvad, без логов. Без фолбэка на открытый DNS.</string>
   <key>PayloadDisplayName</key>
-  <string>ghost-lock DNS Shield (family)</string>
+  <string>ghost-lock DNS Shield (mullvad)</string>
   <key>PayloadIdentifier</key>
-  <string>cc.ghostlock.dnsshield.profile.family</string>
+  <string>cc.ghostlock.dnsshield.profile.mullvad</string>
   <key>PayloadOrganization</key>
   <string>ghost-lock</string>
   <key>PayloadRemovalDisallowed</key>

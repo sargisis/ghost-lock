@@ -1,15 +1,20 @@
 """Генератор DNS-профиля (dns_shield.mobileconfig) из пресета.
 
-Соблюдает главный принцип «не сломать интернет»:
-  • ServerFallback — обычные IP того же фильтрующего вендора: если DoH
-    недоступен, iOS продолжит резолвить через plain-DNS с той же политикой.
+  • ServerAddresses — IP самого DoH-сервера: телефону не нужен обычный DNS,
+    чтобы найти DoH-сервер (чужая сеть не увидит и не подменит этот запрос).
+  • AllowFailover = false — фолбэка на открытый DNS нет: сеть, блокирующая
+    DoH, не переведёт телефон на нешифрованный DNS тихо. Плата — без
+    доступного DoH нет и интернета; какие пресеты проходят в текущей сети,
+    показывает команда dns-check.
   • ProhibitDisablement = false — щит всегда можно выключить в настройках.
 
 DNS profile generator (dns_shield.mobileconfig) built from a preset.
 
-Follows the core principle of "never break the internet":
-  • ServerFallback — plain-DNS IPs from the same filtering vendor: if DoH is
-    unreachable, iOS keeps resolving via plain DNS with the same policy.
+  • ServerAddresses — IPs of the DoH server itself: the phone needs no plain
+    DNS to find it (a foreign network can neither see nor spoof that lookup).
+  • AllowFailover = false — no fallback to plain DNS: a network blocking DoH
+    cannot silently downgrade the phone. The price: no reachable DoH, no
+    internet; the dns-check command shows which presets pass on this network.
   • ProhibitDisablement = false — the shield can always be toggled off in Settings.
 """
 
@@ -32,9 +37,9 @@ TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 
   Блокирует на уровне DNS: {{DESC}}.
 
-  Защита от «сломанного интернета»: если DoH-сервер недоступен, iOS
-  автоматически переходит на обычный DNS (ServerFallback) Того же вендора
-  с той же фильтрующей политикой.
+  ServerAddresses — IP самого DoH-сервера (без открытого DNS-запроса).
+  Фолбэка на открытый DNS нет (AllowFailover=false): если сеть блокирует
+  DoH, интернета не будет — проверь сеть командой dns-check.
 
   Отключить: Настройки → Основное → VPN и управление устройством → DNS.
 -->
@@ -51,9 +56,11 @@ TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
         <string>HTTPS</string>
         <key>ServerURL</key>
         <string>{{DOH_URL}}</string>
-        <key>ServerFallback</key>
-        <array>{{FALLBACK_XML}}
+        <key>ServerAddresses</key>
+        <array>{{ADDRESSES_XML}}
         </array>
+        <key>AllowFailover</key>
+        <false/>
       </dict>
 
       <!-- Без супервизии игнорируется; профиль всегда можно снять вручную -->
@@ -71,7 +78,7 @@ TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
     </dict>
   </array>
   <key>PayloadDescription</key>
-  <string>ghost-lock: зашифрованный DNS (DoH), блокировка {{DESC}}. Фолбэк на plain-DNS того же вендора — интернет не пропадёт при сбое DoH.</string>
+  <string>ghost-lock: зашифрованный DNS (DoH), блокировка {{DESC}}. Без фолбэка на открытый DNS.</string>
   <key>PayloadDisplayName</key>
   <string>ghost-lock DNS Shield ({{PRESET_NAME}})</string>
   <key>PayloadIdentifier</key>
@@ -122,14 +129,14 @@ def render_profile(preset_name: str, nextdns_id: str | None = None) -> str:
             f"Неизвестный пресет {preset_name!r}. Доступны: {', '.join(config.RESOLVER_PRESETS)}"
         ) from None
 
-    fallback_xml = "".join(
-        f"\n          <string>{ip}</string>" for ip in preset["fallback"]
+    addresses_xml = "".join(
+        f"\n          <string>{ip}</string>" for ip in preset["addresses"]
     )
     out = TEMPLATE
     for key, val in {
         "{{PRESET_NAME}}": preset_name,
         "{{DOH_URL}}": resolve_doh_url(preset_name, nextdns_id),
-        "{{FALLBACK_XML}}": fallback_xml,
+        "{{ADDRESSES_XML}}": addresses_xml,
         "{{DESC}}": preset["desc"],
         "{{PAYLOAD_UUID}}": PAYLOAD_UUID_DNS,
         "{{PROFILE_UUID}}": PROFILE_UUID,

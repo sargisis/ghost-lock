@@ -50,6 +50,7 @@ audit            full audit (--udid <UDID>, --deep for forensic mode)
 profiles         generate phone profiles (+ --serve to serve over Wi-Fi)
 setup-telegram   connect alerts (needs a token from @BotFather)
 update-ioc       refresh the indicator database from AmnestyTech STIX feeds
+dns-check        test encrypted DNS on the current network (phone presets + this PC)
 ```
 
 ## Inside the audit
@@ -153,7 +154,7 @@ manually installed profiles.
 
 | File | Payload type | Purpose |
 |---|---|---|
-| `dns_shield.mobileconfig` | DNS Settings (DoH) | Encrypted DNS with resolver-level filtering. A `ServerFallback` keeps the internet working if the DoH endpoint hiccups |
+| `dns_shield.mobileconfig` | DNS Settings (DoH) | Encrypted DNS with resolver-level filtering. Pins the DoH server's IPs (`ServerAddresses`) and never falls back to plain DNS (`AllowFailover=false`) |
 | `web_filter.mobileconfig` | Web Content Filter | **Spyware Domain Wall**: the top-500 C2 domains of Pegasus/Predator/FinFisher blocked at the Safari/WebKit level — a second line of defense that works even off our DNS |
 | `hardened.mobileconfig` | Restrictions | System restrictions stacked on top of Lockdown Mode |
 
@@ -161,9 +162,33 @@ DNS presets:
 
 | Preset | Blocks | Example |
 |---|---|---|
-| `family` *(default)* | malware, phishing, adult content (CleanBrowsing Family) | — |
+| `mullvad` *(default)* | malware, ads, trackers (Mullvad Base, no logs) | — |
+| `quad9` | malware, phishing (Quad9, no IP logging) | `profiles --preset quad9` |
+| `family` | malware, phishing, adult content (CleanBrowsing Family) | — |
 | `cf-family` / `security` | Cloudflare variants without content filtering | — |
 | `nextdns --nextdns-id <ID>` | whatever you configure at my.nextdns.io | `profiles --preset nextdns --nextdns-id abc123` |
+
+**No plain-DNS fallback, by design.** A network that blocks DoH could
+otherwise silently downgrade the phone to unencrypted DNS; instead the phone
+loses DNS on such a network. Some ISPs and routers do block the well-known
+resolvers (one tested home router rejected Quad9, Cloudflare, Google,
+NextDNS and all of port 853). Before installing, check every network the phone
+uses:
+
+```bash
+python3 ghost_lock/ghost_lock.py dns-check
+```
+
+It sends a real DoH query straight to each preset's pinned IP (via `curl`,
+which also speaks HTTP/2) with the certificate verified, exactly as iOS will.
+It also checks the PC: `systemd-resolved` only speaks DoT (port 853), so on
+such a network it either leaks to the router's plain DNS or stops resolving.
+When that happens, `dns-check` prints a ready `dnscrypt-proxy` config that uses
+DoH on port 443 instead.
+
+> Earlier versions wrote a `ServerFallback` key. Apple has no such key, so iOS
+> ignored it. The deep audit flags an installed profile of that version;
+> reinstall it.
 
 The Domain Wall rebuilds from the current IOC database whenever you run
 `profiles` — reinstall the file to refresh the blocklist.
@@ -214,7 +239,7 @@ Current database size: **~4,300 indicators**. Entry format:
 
 ## Tests
 
-223 Python tests (scanner, allowlist, STIX, history/diff, hygiene, WCF profile,
+238 Python tests (scanner, allowlist, STIX, history/diff, hygiene, WCF profile,
 Telegram, CLI, integration) plus Go tests (scan engine, uevent parser):
 
 ```bash
@@ -239,6 +264,7 @@ ghost_lock/
 │   ├── backup_crypto.py     # encrypted iOS backup decryption
 │   ├── profile_audit.py     # profiles, certificates, supervision
 │   ├── netusage.py          # per-process network statistics
+│   ├── dns_check.py         # DoH reachability, PC DNS leaks
 │   ├── profile_gen.py       # generates every .mobileconfig
 │   ├── telegram_notify.py   # alerts
 │   ├── ioc_update.py        # STIX parser + feed merging
@@ -250,7 +276,7 @@ go/
 ├── cmd/glock-scan/          # scanner CLI (JSON output)
 ├── cmd/glock-watch/         # auto-audit daemon
 └── internal/{ioc,scan,watch}/
-tests/                       # 223 unit tests
+tests/                       # 238 unit tests
 deploy/                      # systemd user unit + installer
 ```
 

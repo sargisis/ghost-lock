@@ -19,14 +19,17 @@ class TestPresets(unittest.TestCase):
     def test_default_preset_exists(self):
         self.assertIn(config.DEFAULT_RESOLVER_PRESET, config.RESOLVER_PRESETS)
 
-    def test_every_preset_has_fallback_ips(self):
+    def test_every_preset_has_server_addresses(self):
+        import ipaddress
         for name, preset in config.RESOLVER_PRESETS.items():
-            fallback = preset.get("fallback", [])
-            self.assertTrue(fallback, f"{name}: нет ServerFallback — интернет может сломаться")
-            for ip in fallback:
-                parts = ip.split(".")
-                self.assertEqual(len(parts), 4, f"{name}: битый IP {ip}")
-                self.assertTrue(all(p.isdigit() and 0 <= int(p) <= 255 for p in parts))
+            addrs = preset.get("addresses", [])
+            self.assertTrue(addrs, f"{name}: нет ServerAddresses — DoH-сервер ищется через открытый DNS")
+            for ip in addrs:
+                ipaddress.ip_address(ip)  # бросит на битом IP / raises on a bad IP
+            self.assertNotIn("fallback", preset, f"{name}: ключа ServerFallback у Apple нет")
+
+    def test_default_is_mullvad(self):
+        self.assertEqual(config.DEFAULT_RESOLVER_PRESET, "mullvad")
 
     def test_unknown_preset_raises(self):
         with self.assertRaises(profile_gen.PresetError):
@@ -58,8 +61,22 @@ class TestRenderedProfile(unittest.TestCase):
     def test_family_preset_urls(self):
         dns = self._dns_payload(self.render())
         self.assertEqual(dns["ServerURL"], "https://doh.cleanbrowsing.org/doh/family-filter/")
-        self.assertEqual(dns["ServerFallback"], ["185.228.168.168", "185.228.169.168"])
+        self.assertEqual(dns["ServerAddresses"], ["185.228.169.168", "185.228.168.168"])
         self.assertEqual(dns["DNSProtocol"], "HTTPS")
+
+    def test_only_real_apple_keys(self):
+        # ключи из документации Apple DNSSettings / keys from Apple's DNSSettings docs
+        real = {"DNSProtocol", "ServerAddresses", "ServerName", "ServerURL",
+                "SupplementalMatchDomains", "AllowFailover", "PayloadCertificateUUID"}
+        for preset in ("mullvad", "quad9", "family"):
+            dns = self._dns_payload(self.render(preset))
+            self.assertLessEqual(set(dns), real, f"{preset}: выдуманные ключи {set(dns) - real}")
+            self.assertIs(dns["AllowFailover"], False)
+
+    def test_mullvad_default(self):
+        dns = self._dns_payload(self.render("mullvad"))
+        self.assertEqual(dns["ServerURL"], "https://base.dns.mullvad.net/dns-query")
+        self.assertEqual(dns["ServerAddresses"], ["194.242.2.4"])
 
     def test_cf_family_preset(self):
         dns = self._dns_payload(self.render("cf-family"))
@@ -82,7 +99,7 @@ class TestRenderedProfile(unittest.TestCase):
         )
 
     def test_no_unfilled_placeholders(self):
-        for preset in ("family", "cf-family", "security"):
+        for preset in ("mullvad", "quad9", "family", "cf-family", "security"):
             raw = profile_gen.render_profile(preset)
             self.assertNotIn("{{", raw, f"пресет {preset}: остались плейсхолдеры")
 
@@ -98,10 +115,12 @@ class TestShippedProfilesValid(unittest.TestCase):
         self.assertEqual(data["PayloadType"], "Configuration")
         self.assertTrue(data["PayloadContent"])
 
-    def test_dns_shield_has_fallback(self):
+    def test_dns_shield_has_addresses_no_failover(self):
         data = plistlib.load(open(config.DNS_SHIELD_PROFILE, "rb"))
         dns = data["PayloadContent"][0]["DNSSettings"]
-        self.assertTrue(dns.get("ServerFallback"), "нет фолбэка — риск сломать интернет")
+        self.assertTrue(dns.get("ServerAddresses"))
+        self.assertNotIn("ServerFallback", dns)
+        self.assertIs(dns.get("AllowFailover"), False)
 
     def test_hardened_is_valid_plist(self):
         data = plistlib.load(open(config.HARDENED_PROFILE, "rb"))

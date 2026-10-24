@@ -29,7 +29,9 @@ def stub(ident, payloads, name="", org=""):
 
 OWN_DNS = stub("cc.ghostlock.dnsshield.profile.family", [{
     "PayloadType": "com.apple.dnsSettings.managed",
-    "DNSSettings": {"ServerURL": config.RESOLVER_PRESETS["family"]["doh"]}}])
+    "DNSSettings": {"ServerURL": config.RESOLVER_PRESETS["family"]["doh"],
+                    "ServerAddresses": config.RESOLVER_PRESETS["family"]["addresses"],
+                    "AllowFailover": False}}])
 OWN_WALL = stub("cc.ghostlock.wcf.profile", [{
     "PayloadType": "com.apple.webcontent-filter", "DenyListURLs": ["a.net", "b.net"]}])
 
@@ -63,6 +65,16 @@ class TestProfileAudit(unittest.TestCase):
         self.assertIn("Чужих профилей нет", text)
         self.assertIn("Domain Wall актуален", text)
         self.assertIn("Hardened: НЕ установлен", text)
+
+    def test_old_dns_shield_version_flagged(self):
+        old = stub("cc.ghostlock.dnsshield.profile.family", [{
+            "PayloadType": "com.apple.dnsSettings.managed",
+            "DNSSettings": {"ServerURL": config.RESOLVER_PRESETS["family"]["doh"],
+                            "ServerFallback": ["185.228.168.168"]}}])
+        self.add(old)
+        rep = self.run_audit()
+        self.assertTrue(any("старой версии" in l for _, l in rep.lines))
+        self.assertTrue(any("dns-check" in r for r in rep.recommendations))
 
     def test_mdm_profile_is_critical(self):
         self.add(stub("com.corp.mdm", [{"PayloadType": "com.apple.mdm"},

@@ -11,6 +11,7 @@ and system artifacts are searched for matches against public spyware IOCs.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import unicodedata
@@ -34,6 +35,9 @@ class ScanResult:
     findings: list[Finding] = field(default_factory=list)
     files_scanned: int = 0
     stats_note: str = ""
+    # True — часть данных не проверена (напр. не расшифрован бэкап): «чисто» не гарантировано
+    # True — part of the data went unchecked (e.g. backup not decrypted): "clean" is not guaranteed
+    incomplete: bool = False
 
     @property
     def score(self) -> int:
@@ -67,6 +71,41 @@ def _normalize(text: str) -> str:
 # Строки с word-boundary, чтобы не ловить «pegasus» внутри легитимных имён.
 # Strings matched with word boundaries so 'pegasus' inside legit names isn't caught.
 _WORDBOUND_TYPES = {"spyware_strings"}
+# Домены сверяются с границами домена: «ups.so» не должен срабатывать на
+# «backups.sort», а «weatherapi.co» — на «weatherapi.com».
+# Domains are matched with domain boundaries: "ups.so" must not fire on
+# "backups.sort", nor "weatherapi.co" on "weatherapi.com".
+_DOMAINBOUND_TYPES = {"domains"}
+_DOMAIN_INNER = "-_"
+
+
+def boundary_ok(lowered: str, idx: int, end: int, mode: str) -> bool:
+    """Проверка границ совпадения: "" — без проверки, "word", "domain".
+
+    Match boundary check: "" — none, "word", "domain".
+    """
+    if mode == "word":
+        return ((idx == 0 or not lowered[idx - 1].isalnum())
+                and (end >= len(lowered) or not lowered[end].isalnum()))
+    if mode == "domain":
+        # слева допустима точка (поддомен), справа — домен не должен продолжаться
+        # a dot is fine on the left (subdomain); on the right the domain must not continue
+        if idx > 0 and (lowered[idx - 1].isalnum() or lowered[idx - 1] in _DOMAIN_INNER):
+            return False
+        # Бинарная запись (SQLite, plist): перед строкой байт длины, поля идут
+        # вплотную — правый край ничего не значит, проверять его нельзя.
+        # Binary record (SQLite, plist): a length byte precedes the string and
+        # fields are packed back to back — the right edge means nothing here.
+        if idx > 0 and ord(lowered[idx - 1]) < 0x20 and lowered[idx - 1] not in "\t\n\r":
+            return True
+        if end < len(lowered):
+            c = lowered[end]
+            if c.isalnum() or c in _DOMAIN_INNER:
+                return False
+            if c == "." and end + 1 < len(lowered) and (
+                    lowered[end + 1].isalnum() or lowered[end + 1] in _DOMAIN_INNER):
+                return False
+    return True
 
 
 def _allowlist(iocs: dict[str, Any]) -> list[re.Pattern[str]]:
@@ -96,8 +135,8 @@ _SCANNED_SECTIONS = (
 )
 
 
-def _flat_needles(iocs: dict[str, Any]) -> list[tuple[str, dict, str, bool]]:
-    """[(needle_lower, ioc_entry, section, word_boundary)] — отсортированы по длине убыв.
+def _flat_needles(iocs: dict[str, Any]) -> list[tuple[str, dict, str, str]]:
+    """[(needle_lower, ioc_entry, section, boundary_mode)] — отсортированы по длине убыв.
 
     Sorted by needle length descending.
     """
@@ -112,14 +151,18 @@ def _flat_needles(iocs: dict[str, Any]) -> list[tuple[str, dict, str, bool]]:
     if cached:
         return cached
 
-    needles: list[tuple[str, dict, str, bool]] = []
+    needles: list[tuple[str, dict, str, str]] = []
     for section in _SCANNED_SECTIONS:
         for ioc in iocs.get(section, []):
             needle = str(ioc.get("value", "")).lower().strip() if isinstance(ioc, dict) else ""
             if not needle:
                 continue
-            wb = section in _WORDBOUND_TYPES and len(needle.split()) == 1
-            needles.append((needle, ioc, section, wb))
+            mode = ""
+            if section in _WORDBOUND_TYPES and len(needle.split()) == 1:
+                mode = "word"
+            elif section in _DOMAINBOUND_TYPES and "/" not in needle:
+                mode = "domain"
+            needles.append((needle, ioc, section, mode))
     needles.sort(key=lambda t: -len(t[0]))
     _NEEDLE_CACHE[cache_key] = needles
     return needles
@@ -142,12 +185,9 @@ def scan_text(iocs: dict[str, Any], text: str, location: str) -> list[Finding]:
             hops += 1
             end = idx + len(needle)
 
-            if wb:
-                before_ok = idx == 0 or not lowered[idx - 1].isalnum()
-                after_ok = end >= len(lowered) or not lowered[end].isalnum()
-                if not (before_ok and after_ok):
-                    idx = lowered.find(needle, end or idx + 1)
-                    continue
+            if wb and not boundary_ok(lowered, idx, end, wb):
+                idx = lowered.find(needle, idx + 1)
+                continue
 
             ls = text.rfind("\n", 0, idx) + 1
             le = text.find("\n", idx)
@@ -214,6 +254,13 @@ def go_available() -> bool:
     return GO_BIN.exists()
 
 
+def _lower_priority() -> None:
+    try:
+        os.nice(10)
+    except OSError:
+        pass
+
+
 def _scan_with_go(crash_dir: Path) -> ScanResult | None:
     """Тяжёлый IOC-скан отдаём Go-бинарнику (в ~7 раз быстрее Python).
 
@@ -227,6 +274,9 @@ def _scan_with_go(crash_dir: Path) -> ScanResult | None:
             capture_output=True,
             text=True,
             timeout=600,
+            # низкий приоритет: скан грузит все ядра, но уступает CPU остальным программам
+            # low priority: the scan uses every core yet yields CPU to other programs
+            preexec_fn=_lower_priority if hasattr(os, "nice") else None,
         )
         if proc.returncode != 0:
             return None

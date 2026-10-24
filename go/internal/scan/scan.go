@@ -18,6 +18,10 @@ import (
 
 const MaxFileBytes = 8 << 20 // файлы больше не сканируем / files above this size are skipped
 
+// Лимит проверок одной иглы в файле (защита от мусорных частых совпадений)
+// Cap on checks of one needle per file (guards against noisy frequent matches)
+const maxHopsPerNeedle = 10000
+
 // Finding — одно срабатывание IOC (формат совпадает с Python-сканером).
 //
 // Finding — a single IOC hit (format mirrors the Python scanner).
@@ -54,6 +58,7 @@ type Result struct {
 type Scanner struct {
 	db        *ioc.DB
 	needles   []ioc.Needle
+	matcher   *aho
 	allowlist []*regexp.Regexp
 }
 
@@ -68,7 +73,12 @@ func New(db *ioc.DB) (*Scanner, error) {
 			regs = append(regs, re)
 		}
 	}
-	return &Scanner{db: db, needles: db.Needles(), allowlist: regs}, nil
+	needles := db.Needles()
+	values := make([]string, len(needles))
+	for i, n := range needles {
+		values[i] = n.Value
+	}
+	return &Scanner{db: db, needles: needles, matcher: newAho(values), allowlist: regs}, nil
 }
 
 func isAlnum(b byte) bool {
@@ -79,6 +89,34 @@ func isAlnum(b byte) bool {
 		return true
 	}
 	return false
+}
+
+func isDomainInner(b byte) bool { return isAlnum(b) || b == '-' || b == '_' }
+
+// domainBoundOK: слева допустима точка (поддомен), справа домен не продолжается.
+//
+// domainBoundOK: a dot is fine on the left (subdomain); on the right the
+// domain must not continue.
+func domainBoundOK(s string, pos, end int) bool {
+	if pos > 0 && isDomainInner(s[pos-1]) {
+		return false
+	}
+	// Бинарная запись (SQLite, plist): перед строкой байт длины, поля идут
+	// вплотную — правый край ничего не значит, проверять его нельзя.
+	// Binary record (SQLite, plist): a length byte precedes the string and
+	// fields are packed back to back — the right edge means nothing here.
+	if pos > 0 && s[pos-1] < 0x20 && s[pos-1] != '\t' && s[pos-1] != '\n' && s[pos-1] != '\r' {
+		return true
+	}
+	if end < len(s) {
+		if isDomainInner(s[end]) {
+			return false
+		}
+		if s[end] == '.' && end+1 < len(s) && isDomainInner(s[end+1]) {
+			return false
+		}
+	}
+	return true
 }
 
 func collapseSpace(s string) string {
@@ -122,75 +160,77 @@ func (s *Scanner) source(n ioc.Needle, ls int, lowered string) string {
 	return fmt.Sprintf("%s (строка %d)", src, strings.Count(lowered[:ls], "\n")+1)
 }
 
-// scanText: один файл целиком; word-boundary + allowlist, максимум одно
-// срабатывание на иглу (дедуп делает Python).
+// scanText: один файл целиком за один проход Aho-Corasick; word-boundary +
+// allowlist, максимум одно срабатывание на иглу (дедуп делает Python).
+// Находки выдаются в порядке игл — как и прежде.
 //
-// scanText: one whole file; word boundaries + allowlist, at most one hit per
-// needle (dedup is done by the Python side).
+// scanText: one whole file in a single Aho-Corasick pass; word boundaries +
+// allowlist, at most one hit per needle (dedup is done by the Python side).
+// Findings come out in needle order — same as before.
 func (s *Scanner) scanText(text, location string) []Finding {
 	lowered := strings.ToLower(text)
+	hits := make(map[int32]Finding)
+	attempts := make(map[int32]int)
+	remaining := len(s.needles)
+
+	s.matcher.each(lowered, func(idx int32, end int) bool {
+		if _, done := hits[idx]; done {
+			return true
+		}
+		if attempts[idx] >= maxHopsPerNeedle {
+			return true
+		}
+		attempts[idx]++
+		n := s.needles[idx]
+		pos := end - len(n.Value)
+
+		if n.WordBound {
+			beforeOK := pos == 0 || !isAlnum(lowered[pos-1])
+			afterOK := end >= len(lowered) || !isAlnum(lowered[end])
+			if !beforeOK || !afterOK {
+				return true
+			}
+		}
+		if n.DomainBound && !domainBoundOK(lowered, pos, end) {
+			return true
+		}
+
+		ls := strings.LastIndexByte(lowered[:pos], '\n') + 1
+		le := strings.IndexByte(lowered[end:], '\n')
+		if le < 0 {
+			le = len(lowered)
+		} else {
+			le += end
+		}
+		line := collapseSpace(lowered[ls:le])
+		if s.gated(line) {
+			return true
+		}
+
+		ctxStart := pos - 80
+		if ctxStart < ls {
+			ctxStart = ls
+		}
+		ctxEnd := end + 80
+		if ctxEnd > le {
+			ctxEnd = le
+		}
+		hits[idx] = Finding{
+			Type:     n.Section,
+			Value:    n.Entry.Value,
+			Weight:   n.Entry.Weight,
+			Source:   s.source(n, ls, lowered),
+			Location: location,
+			Context:  collapseSpace(strings.ReplaceAll(lowered[ctxStart:ctxEnd], "\x00", "")),
+		}
+		remaining--
+		return remaining > 0
+	})
+
 	var out []Finding
-
-	for _, n := range s.needles {
-		idx := 0
-		for hops := 0; hops < 10000; hops++ {
-			pos := strings.Index(lowered[idx:], n.Value)
-			if pos < 0 {
-				break
-			}
-			pos += idx
-			end := pos + len(n.Value)
-
-			if n.WordBound {
-				beforeOK := pos == 0 || !isAlnum(lowered[pos-1])
-				afterOK := end >= len(lowered) || !isAlnum(lowered[end])
-				if !beforeOK || !afterOK {
-					next := strings.Index(lowered[end:], n.Value)
-					if next < 0 {
-						break
-					}
-					idx = end + next
-					continue
-				}
-			}
-
-			ls := strings.LastIndexByte(lowered[:pos], '\n') + 1
-			le := strings.IndexByte(lowered[end:], '\n')
-			if le < 0 {
-				le = len(lowered)
-			} else {
-				le += end
-			}
-			line := collapseSpace(lowered[ls:le])
-
-			if s.gated(line) {
-				next := strings.Index(lowered[end:], n.Value)
-				if next < 0 {
-					break
-				}
-				idx = end + next
-				continue
-			}
-
-			ctxStart := pos - 80
-			if ctxStart < ls {
-				ctxStart = ls
-			}
-			ctxEnd := pos + len(n.Value) + 80
-			if ctxEnd > le {
-				ctxEnd = le
-			}
-			context := collapseSpace(strings.ReplaceAll(lowered[ctxStart:ctxEnd], "\x00", ""))
-
-			out = append(out, Finding{
-				Type:     n.Section,
-				Value:    n.Entry.Value,
-				Weight:   n.Entry.Weight,
-				Source:   s.source(n, ls, lowered),
-				Location: location,
-				Context:  context,
-			})
-			break
+	for i := range s.needles {
+		if f, ok := hits[int32(i)]; ok {
+			out = append(out, f)
 		}
 	}
 	return out

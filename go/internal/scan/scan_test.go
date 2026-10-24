@@ -124,3 +124,23 @@ func BenchmarkScan1MB(b *testing.B) {
 		sc.scanText(text, "bench")
 	}
 }
+
+func TestDomainBoundaries(t *testing.T) {
+	sc := newScanner(t)
+	cases := map[string]bool{
+		"GET https://mobilesms.io/x":     true,
+		"host=cdn.mobilesms.io port=443": true,
+		"end of sentence mobilesms.io.":  true,
+		"notmobilesms.io":                false,
+		"x-mobilesms.io":                 false,
+		"mobilesms.io.evil.com":          false,
+		"mobilesms.iod":                  false,
+		"mobilesms.io-cdn":               false,
+	}
+	for text, want := range cases {
+		got := len(sc.scanText(text, "d.log")) > 0
+		if got != want {
+			t.Errorf("%q: got %v want %v", text, got, want)
+		}
+	}
+}

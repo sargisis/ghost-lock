@@ -136,12 +136,12 @@ def diff_with_history(*, udid: str, current_apps: list[tuple[str, str]],
     con = _connect(path)
     try:
         row = con.execute(
-            "SELECT ts, score FROM audits WHERE udid=? ORDER BY id DESC LIMIT 1",
+            "SELECT ts, score, id FROM audits WHERE udid=? ORDER BY id DESC LIMIT 1",
             (udid,),
         ).fetchone()
         if not row:
             return rep
-        rep.prev_ts, rep.prev_score = row[0], row[1]
+        rep.prev_ts, rep.prev_score, prev_id = row
 
         known_bundles = {r[0] for r in con.execute(
             "SELECT DISTINCT s.bundle_id FROM app_snapshots s"
@@ -149,7 +149,13 @@ def diff_with_history(*, udid: str, current_apps: list[tuple[str, str]],
         cur_bundles = {b for b, _ in current_apps}
         rep.new_apps = sorted(
             (b, v) for b, v in current_apps if b not in known_bundles)
-        rep.removed_apps = sorted(known_bundles - cur_bundles)
+        # Удалённые — относительно ПРОШЛОГО аудита, иначе давно удалённое
+        # приложение всплывает в каждом отчёте. Новые — против всей истории.
+        # Removed — relative to the PREVIOUS audit, otherwise a long-gone app
+        # resurfaces in every report. New ones — against the whole history.
+        prev_bundles = {r[0] for r in con.execute(
+            "SELECT bundle_id FROM app_snapshots WHERE audit_id=?", (prev_id,))}
+        rep.removed_apps = sorted(prev_bundles - cur_bundles)
 
         known_crashes = {r[0] for r in con.execute(
             "SELECT DISTINCT c.filename FROM crash_files c"

@@ -183,6 +183,8 @@ def cmd_audit(args: argparse.Namespace) -> None:
     ok(f"Краш-логи в {crash_dir} ({n_logs} файлов)")
     crash_names = sorted(p.name for p in Path(crash_dir).iterdir() if p.is_file())
 
+    incomplete_notes: list[str] = []
+
     step("IOC-скан (домены C2, джейлбрейк-артефакты, стalkerware-профили, фишинг-эвристики)…")
     result = run_scan(info, crash_dir)
 
@@ -193,8 +195,11 @@ def cmd_audit(args: argparse.Namespace) -> None:
         deep_result = deep_scan.run(udid, info)
         result.findings.extend(deep_result.findings)
         result.files_scanned += deep_result.files_scanned
+        result.incomplete = result.incomplete or deep_result.incomplete
         if deep_result.stats_note:
             print(yellow(f"[~] {deep_result.stats_note}"))
+        if deep_result.incomplete:
+            incomplete_notes.append(deep_result.stats_note)
 
     step("Скан установленных приложений (stalkerware по bundle-id)…")
     apps_pairs: list[tuple[str, str]] = []
@@ -257,6 +262,10 @@ def cmd_audit(args: argparse.Namespace) -> None:
     verdict_en, verdict_ru = result.verdict()
     color = {"clean": green, "suspicious": yellow, "critical": red}[verdict_en.lower()]
     print(color(f"\n=== ВЕРДИКТ: {verdict_en} / {verdict_ru}  (score {result.score}) ==="))
+    if result.incomplete:
+        print(red("[!] Аудит НЕПОЛНЫЙ: часть данных не проверена, вердикт не гарантирует чистоту."))
+        for n in incomplete_notes:
+            print(red(f"    • {n}"))
 
     if result.findings:
         print(yellow("\nНаходки:"))
@@ -271,6 +280,8 @@ def cmd_audit(args: argparse.Namespace) -> None:
     recommendations = list(report_mod.BASE_RECOMMENDATIONS)
     if os_note:
         recommendations.insert(0, os_note)
+    for n in incomplete_notes:
+        recommendations.insert(0, f"Аудит неполный — {n}")
     html = report_mod.build_report(
         device_rows=connect.summary(info),
         findings_rows_html=render_findings_table(result.findings),
@@ -303,7 +314,8 @@ def cmd_audit(args: argparse.Namespace) -> None:
     if telegram_notify.notify_audit(
         verdict_en=verdict_en, verdict_ru=verdict_ru, score=result.score,
         device=device_name, files_scanned=result.files_scanned,
-        findings_top=top, report_path=str(path), extra_lines=diff_lines[:3],
+        findings_top=top, report_path=str(path),
+        extra_lines=[f"⚠️ {n}" for n in incomplete_notes] + diff_lines[:3],
     ):
         ok("Отправлено.")
     else:

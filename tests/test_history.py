@@ -72,10 +72,17 @@ class TestDiff(HistoryBase):
         rep = history.diff_with_history(
             udid="UDID1", current_apps=[("com.a", "1.0"), ("com.b", "2.0")],
             current_crash_names=[], path=self.db)
-        # com.b был в истории → не новый; com.gone нет в текущих, но и
-        # сравнение идёт со ВСЕЙ историей: удалённым считается то, что
-        # было когда-либо и пропало сейчас
+        # com.b был в истории → не новый; удалённых относительно прошлого аудита нет
+        # com.b is in history → not new; nothing removed since the previous audit
         self.assertEqual(rep.new_apps, [])
+        self.assertEqual(rep.removed_apps, [])
+
+    def test_removed_app_reported_only_once(self):
+        self.save(apps=[("com.a", "1.0"), ("com.gone", "1.0")])
+        self.save(apps=[("com.a", "1.0")])  # com.gone удалили до этого аудита
+        rep = history.diff_with_history(
+            udid="UDID1", current_apps=[("com.a", "1.0")],
+            current_crash_names=[], path=self.db)
         self.assertEqual(rep.removed_apps, [])
 
     def test_new_crash_counted_against_full_history(self):

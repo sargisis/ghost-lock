@@ -274,5 +274,23 @@ class TestStixSections(unittest.TestCase):
         self.assertEqual(values, {"ops@evil.net", "/private/var/implant.dylib"})
 
 
+class TestDomainBoundaries(unittest.TestCase):
+    def test_domain_needs_boundaries(self):
+        from ghost_lock.modules.spyware_scan import boundary_ok
+        cases = {
+            "get https://mobilesms.io/x": True,
+            "cdn.mobilesms.io:443": True,
+            "end mobilesms.io.": True,
+            "notmobilesms.io": False,
+            "x-mobilesms.io": False,
+            "mobilesms.io.evil.com": False,
+            "mobilesms.iod": False,
+            "\x04mobilesms.iojrecord": True,  # SQLite: поля вплотную / packed fields
+        }
+        for text, want in cases.items():
+            i = text.find("mobilesms.io")
+            self.assertEqual(boundary_ok(text, i, i + len("mobilesms.io"), "domain"), want, text)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -81,6 +81,17 @@ network usage) followed by a sweep of everything inside. The first run takes
 tens of minutes; later ones are incremental and fast. A regular audit sees
 hundreds of files — deep mode sees tens of thousands.
 
+**Encrypted backups.** The `hardened` profile turns on `forceEncryptedBackup`,
+so after installing it the phone only hands out ciphertext. ghost-lock asks the
+phone *before* the backup whether it will be encrypted, takes the backup
+password from `GHOST_LOCK_BACKUP_PASSWORD` or a keyboard prompt, decrypts into
+a temporary folder (`pip install cryptography`), scans it and deletes the
+plaintext copy right away. No password or a wrong one → the audit is marked
+**INCOMPLETE** in the console, the report and Telegram — a scan of ciphertext
+is never reported as "clean". An unencrypted backup triggers a warning: it sits
+on disk in plaintext; enable encryption with
+`idevicebackup2 -i -u <UDID> encryption on`.
+
 ## Audit history & diff
 
 Every audit is stored in `~/.local/share/ghost-lock/history.db`.
@@ -172,7 +183,7 @@ Current database size: **~4,300 indicators**. Entry format:
 
 ## Tests
 
-190 Python tests (scanner, allowlist, STIX, history/diff, hygiene, WCF profile,
+207 Python tests (scanner, allowlist, STIX, history/diff, hygiene, WCF profile,
 Telegram, CLI, integration) plus Go tests (scan engine, uevent parser):
 
 ```bash
@@ -194,6 +205,7 @@ ghost_lock/
 │   ├── hygiene.py           # over-cable security hygiene check
 │   ├── history.py           # SQLite history + diff
 │   ├── deep_scan.py         # full backup + forensics sweep
+│   ├── backup_crypto.py     # encrypted iOS backup decryption
 │   ├── profile_gen.py       # generates every .mobileconfig
 │   ├── telegram_notify.py   # alerts
 │   ├── ioc_update.py        # STIX parser + feed merging
@@ -205,7 +217,7 @@ go/
 ├── cmd/glock-scan/          # scanner CLI (JSON output)
 ├── cmd/glock-watch/         # auto-audit daemon
 └── internal/{ioc,scan,watch}/
-tests/                       # 190 unit tests
+tests/                       # 207 unit tests
 deploy/                      # systemd user unit + installer
 ```
 

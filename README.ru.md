@@ -80,6 +80,16 @@ python3 ghost_lock/ghost_lock.py audit --deep
 сетевая статистика) + скан всего содержимого. Первый прогон — десятки минут,
 дальше инкрементально быстро. Обычный аудит смотрит сотни файлов, deep — десятки тысяч.
 
+**Зашифрованные бэкапы.** Профиль `hardened` включает `forceEncryptedBackup`,
+поэтому после его установки телефон отдаёт только шифротекст. ghost-lock *до*
+бэкапа спрашивает у телефона, будет ли он зашифрован, берёт пароль бэкапа из
+`GHOST_LOCK_BACKUP_PASSWORD` или с клавиатуры, расшифровывает во временную
+папку (`pip install cryptography`), сканирует и сразу удаляет открытую копию.
+Нет пароля или он неверный → аудит помечается **НЕПОЛНЫМ** в консоли, отчёте и
+Telegram — скан шифротекста никогда не выдаётся за «чисто». Незашифрованный
+бэкап даёт предупреждение: он лежит на диске открыто; включи шифрование:
+`idevicebackup2 -i -u <UDID> encryption on`.
+
 ## История аудитов и diff
 
 Каждый аудит сохраняется в `~/.local/share/ghost-lock/history.db`.
@@ -170,7 +180,7 @@ FinFisher, DoNOT, NovaSpy, Wintego…) через GitHub API: домены, emai
 
 ## Тесты
 
-190 Python-тестов (сканер, allowlist, STIX, история/diff, гигиена, WCF-профиль,
+207 Python-тестов (сканер, allowlist, STIX, история/diff, гигиена, WCF-профиль,
 Telegram, CLI, интеграция) + Go-тесты (движок скана, парсер uevent):
 
 ```bash
@@ -192,6 +202,7 @@ ghost_lock/
 │   ├── hygiene.py           # чек гигиены по кабелю
 │   ├── history.py           # SQLite-история + diff
 │   ├── deep_scan.py         # полный бэкап + форензика
+│   ├── backup_crypto.py     # расшифровка зашифрованного бэкапа iOS
 │   ├── profile_gen.py       # генератор всех .mobileconfig
 │   ├── telegram_notify.py   # алерты
 │   ├── ioc_update.py        # STIX-парсер + слияние фидов
@@ -203,7 +214,7 @@ go/
 ├── cmd/glock-scan/          # CLI сканера (JSON out)
 ├── cmd/glock-watch/         # демон авто-аудита
 └── internal/{ioc,scan,watch}/
-tests/                       # 190 юнит-тестов
+tests/                       # 207 юнит-тестов
 deploy/                      # systemd user-юнит + установщик
 ```
 

@@ -59,10 +59,11 @@ func normalize(e Entry) (string, bool) {
 //
 // Needle — a search-ready needle (lowercased, with section and word-boundary flag).
 type Needle struct {
-	Value     string
-	Entry     Entry
-	Section   string
-	WordBound bool
+	Value       string
+	Entry       Entry
+	Section     string
+	WordBound   bool
+	DomainBound bool
 }
 
 // Needles собирает плоский список игл по сканируемым секциям,
@@ -103,6 +104,8 @@ func (d *DB) Needles() []Needle {
 				Entry:     e,
 				Section:   s.name,
 				WordBound: s.wb && len(strings.Fields(v)) == 1,
+				// границы домена: «ups.so» ≠ «backups.sort» / domain bounds: "ups.so" ≠ "backups.sort"
+				DomainBound: s.name == "domains" && !strings.Contains(v, "/"),
 			})
 		}
 	}

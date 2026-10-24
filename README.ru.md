@@ -236,7 +236,7 @@ FinFisher, DoNOT, NovaSpy, Wintego…) через GitHub API: домены, emai
 
 ## Тесты
 
-238 Python-тестов (сканер, allowlist, STIX, история/diff, гигиена, WCF-профиль,
+240 Python-тестов (сканер, allowlist, STIX, история/diff, гигиена, WCF-профиль,
 Telegram, CLI, интеграция) + Go-тесты (движок скана, парсер uevent):
 
 ```bash
@@ -273,7 +273,7 @@ go/
 ├── cmd/glock-scan/          # CLI сканера (JSON out)
 ├── cmd/glock-watch/         # демон авто-аудита
 └── internal/{ioc,scan,watch}/
-tests/                       # 238 юнит-тестов
+tests/                       # 240 юнит-тестов
 deploy/                      # systemd user-юнит + установщик
 ```
 

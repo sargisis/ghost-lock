@@ -207,7 +207,10 @@ systemctl --user status glock-watch     # is it alive
 journalctl --user -u glock-watch -f     # live audit logs
 ```
 
-A 90-second cooldown prevents event storms. To start the service before login:
+A 90-second cooldown prevents event storms. Only one audit runs at a time (a
+lock file), and the daemon calls `audit --if-stale 15`: a deep backup makes the
+phone reconnect over USB, which would otherwise start a second audit and a
+duplicate Telegram alert. Re-run `./deploy/install_watch.sh` after updating. To start the service before login:
 `sudo loginctl enable-linger $USER`.
 
 ## Telegram alerts
@@ -239,7 +242,7 @@ Current database size: **~4,300 indicators**. Entry format:
 
 ## Tests
 
-238 Python tests (scanner, allowlist, STIX, history/diff, hygiene, WCF profile,
+240 Python tests (scanner, allowlist, STIX, history/diff, hygiene, WCF profile,
 Telegram, CLI, integration) plus Go tests (scan engine, uevent parser):
 
 ```bash
@@ -276,7 +279,7 @@ go/
 ├── cmd/glock-scan/          # scanner CLI (JSON output)
 ├── cmd/glock-watch/         # auto-audit daemon
 └── internal/{ioc,scan,watch}/
-tests/                       # 238 unit tests
+tests/                       # 240 unit tests
 deploy/                      # systemd user unit + installer
 ```
 

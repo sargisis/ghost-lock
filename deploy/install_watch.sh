@@ -15,7 +15,11 @@ install -m 755 "$PROJECT/go/bin/glock-watch" "$HOME/.local/bin/"
 cat > "$HOME/.local/bin/ghost-lock-audit" <<EOF
 #!/usr/bin/env bash
 cd "$PROJECT"
-python3 ghost_lock/ghost_lock.py audit
+# --if-stale: телефон переподключается по USB во время/после бэкапа —
+# без порога каждый такой «коннект» давал бы новый аудит и алерт
+# --if-stale: the phone reconnects over USB during/after a backup —
+# without the threshold every such "connect" would mean a new audit and alert
+python3 ghost_lock/ghost_lock.py audit --if-stale 15
 EOF
 chmod 755 "$HOME/.local/bin/ghost-lock-audit"
 

@@ -169,12 +169,63 @@ def _pick_udid(requested: str | None) -> str:
     return udids[0]
 
 
+AUDIT_LOCK = config.WORKDIR / "audit.lock"
+
+
+def _acquire_audit_lock():
+    """Один аудит за раз: во время deep-бэкапа телефон переподключается по USB,
+    и glock-watch иначе запустил бы второй аудит параллельно с первым.
+    Возвращает открытый файл-замок (держать до конца) или None, если занято.
+
+    One audit at a time: during a deep backup the phone reconnects over USB,
+    and glock-watch would otherwise start a second audit alongside the first.
+    Returns the open lock file (keep it until the end) or None if busy.
+    """
+    try:
+        import fcntl
+    except ImportError:  # Windows: демона там нет / no daemon there
+        return True
+    fh = open(AUDIT_LOCK, "w")
+    try:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        fh.close()
+        return None
+    return fh
+
+
+def _recent_audit_minutes(udid: str) -> float | None:
+    from datetime import datetime, timezone
+    from ghost_lock.modules import history
+    last = history.last_audit(udid)
+    if not last:
+        return None
+    try:
+        ts = datetime.fromisoformat(last["ts"])
+    except (TypeError, ValueError):
+        return None
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - ts).total_seconds() / 60
+
+
 def cmd_audit(args: argparse.Namespace) -> None:
     banner()
     config.ensure_dirs()
 
+    lock = _acquire_audit_lock()
+    if lock is None:
+        print(yellow("[~] Аудит уже выполняется (другой процесс) — пропускаю."))
+        return
+
     step("Подключение к устройству…")
     udid = _pick_udid(args.udid)
+    if args.if_stale is not None:
+        age = _recent_audit_minutes(udid)
+        if age is not None and age < args.if_stale:
+            print(dim(f"[~] Этот телефон проверяли {age:.0f} мин назад "
+                      f"(порог --if-stale {args.if_stale}) — пропускаю."))
+            return
     info = connect.device_info(udid)
     ok(f"Подключено: {info.get('DeviceName')} · iOS {info.get('ProductVersion')} · UDID {udid[:12]}…")
 
@@ -583,6 +634,8 @@ def main() -> None:
     p_audit.add_argument("--udid", help="UDID конкретного устройства")
     p_audit.add_argument("--deep", action="store_true",
                          help="глубокий режим: полный бэкап телефона + скан всех файлов (долго!)")
+    p_audit.add_argument("--if-stale", type=float, metavar="МИН",
+                         help="пропустить, если телефон проверяли меньше МИН минут назад (для glock-watch)")
     p_audit.set_defaults(func=cmd_audit)
 
     p_prof = sub.add_parser("profiles", help="инструкция по установке защиты на телефон")

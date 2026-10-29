@@ -6,8 +6,8 @@ Predator оставляли там процессы из нестандартн�
 /private/var/tmp/. Ценность: журнал переживает удаление импланта и хранит
 историю многих перезагрузок.
 
-Откуда берётся: sysdiagnose (на телефоне — обе кнопки громкости + боковая
-на 1–1,5 с, короткая вибрация). Архив sysdiagnose_*.tar.gz iOS кладёт в
+Откуда берётся: sysdiagnose (на телефоне — коротко, ~0,2 с, нажать обе
+кнопки громкости + боковую; удержание включает экстренный вызов!). Архив sysdiagnose_*.tar.gz iOS кладёт в
 DiagnosticLogs, который аудит и так выгружает; или ghost_lock.py sysdiagnose.
 Архив читается в памяти: на диск не распаковывается ничего, кроме того, что
 iOS уже отдала.
@@ -19,8 +19,8 @@ client pid: N (/path)"). Pegasus, Reign and Predator implants left processes
 from unusual locations there — /private/var/db/, /private/var/tmp/. Value: the
 log survives implant removal and keeps the history of many reboots.
 
-Source: a sysdiagnose (on the phone: both volume buttons + side button for
-1–1.5 s, a short vibration). iOS puts sysdiagnose_*.tar.gz into
+Source: a sysdiagnose (on the phone: briefly, ~0.2 s, press both volume
+buttons + side button; holding triggers Emergency SOS!). iOS puts sysdiagnose_*.tar.gz into
 DiagnosticLogs, which the audit already exports; or ghost_lock.py sysdiagnose.
 The archive is read in memory; nothing is unpacked to disk.
 """
@@ -36,7 +36,9 @@ from typing import Any
 
 from .models import Finding
 
-LOG_SUFFIX = "logarchive/Extra/shutdown.log"
+# iOS ≤26: Extra/shutdown.log; iOS 27: с номером ротации — Extra/shutdown.0.log
+# iOS ≤26: Extra/shutdown.log; iOS 27: with a rotation index — Extra/shutdown.0.log
+LOG_NAME = re.compile(r"logarchive/Extra/shutdown(\.\d+)?\.log$")
 MAX_LOG_BYTES = 32 << 20
 
 # Каталоги, откуда штатные процессы iOS при выключении не висят. Пути
@@ -70,18 +72,28 @@ def find_archives(*dirs: Path) -> list[Path]:
 
 
 def read_shutdown_log(archive: Path) -> str | None:
-    """Только shutdown.log из архива, в памяти. / Only shutdown.log, in memory."""
+    """Все ротации shutdown.log из архива, в памяти, от старых к новым.
+
+    All shutdown.log rotations from the archive, in memory, oldest first.
+    """
+    parts: list[tuple[int, str]] = []
     try:
         with tarfile.open(archive, "r:gz") as tar:
             for member in tar:
-                if member.isfile() and member.name.endswith(LOG_SUFFIX):
-                    if member.size > MAX_LOG_BYTES:
-                        return None
-                    fh = tar.extractfile(member)
-                    return fh.read().decode("utf-8", errors="replace") if fh else None
+                m = LOG_NAME.search(member.name)
+                if not (m and member.isfile()) or member.size > MAX_LOG_BYTES:
+                    continue
+                fh = tar.extractfile(member)
+                if fh:
+                    # больший номер ротации — более старый файл
+                    # a higher rotation index is an older file
+                    index = int(m.group(1)[1:]) if m.group(1) else -1
+                    parts.append((index, fh.read().decode("utf-8", errors="replace")))
     except (OSError, tarfile.TarError, EOFError):
         return None
-    return None
+    if not parts:
+        return None
+    return "\n".join(text for _, text in sorted(parts, key=lambda x: -x[0]))
 
 
 def parse(text: str) -> list[Reboot]:

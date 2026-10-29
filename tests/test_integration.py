@@ -97,7 +97,16 @@ class TestCli(unittest.TestCase):
 
     def test_audit_without_device_fails_with_hint(self):
         # На машине без айфона аудит должен завершиться понятной ошибкой,
-        # а не трейсбеком.
+        # а не трейсбеком. С подключённым телефоном тест провёл бы НАСТОЯЩИЙ
+        # аудит (и алерт в Telegram) — пропускаем.
+        # Without an iPhone the audit must fail with a clear error, not a
+        # traceback. With a phone attached the test would run a REAL audit
+        # (and a Telegram alert) — skip.
+        import shutil as _sh
+        if _sh.which("idevice_id"):
+            ids = subprocess.run(["idevice_id", "-l"], capture_output=True, text=True).stdout.strip()
+            if ids:
+                self.skipTest("подключён iPhone — тест только для машины без устройства")
         proc = self.run_cli("audit")
         if proc.returncode != 0:
             combined = proc.stdout + proc.stderr

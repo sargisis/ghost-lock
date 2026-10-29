@@ -44,6 +44,34 @@ def make_archive(dirpath: Path, log: str | None, name="sysdiagnose_2026.10.24_18
     return path
 
 
+def make_archive_named(dirpath: Path, members: dict[str, str]):
+    path = dirpath / "sysdiagnose_2026.10.24_ios27.tar.gz"
+    with tarfile.open(path, "w:gz") as tar:
+        for rel, text in members.items():
+            data = text.encode()
+            info = tarfile.TarInfo("sd/system_logs.logarchive/Extra/" + rel)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+    return path
+
+
+class TestIos27Rotation(unittest.TestCase):
+    def test_rotated_names_read_oldest_first(self):
+        old = "SIGTERM: [1700000000]\nremaining client pid: 1 (/private/var/db/old/implant)\n"
+        new = "SIGTERM: [1729000000]\nremaining client pid: 2 (/usr/libexec/backboardd)\n"
+        with tempfile.TemporaryDirectory() as d:
+            make_archive_named(Path(d), {"shutdown.0.log": new, "shutdown.1.log": old})
+            text = shutdown_log.read_shutdown_log(next(Path(d).iterdir()))
+            reboots = shutdown_log.parse(text)
+        self.assertEqual([r.timestamp for r in reboots], [1700000000, 1729000000])
+
+    def test_ios27_single_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_archive_named(Path(d), {"shutdown.0.log": INFECTED})
+            rep = shutdown_log.audit_dir(Path(d), IOCS)
+        self.assertTrue(rep.findings)
+
+
 class TestParse(unittest.TestCase):
     def test_reboots_and_clients(self):
         reboots = shutdown_log.parse(CLEAN)

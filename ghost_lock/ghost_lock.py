@@ -183,23 +183,34 @@ def _pick_udid(requested: str | None) -> str:
     return udids[0]
 
 
-SYSDIAGNOSE_HOWTO = ("на телефоне зажми обе кнопки громкости + боковую на 1–1,5 с "
-                     "(короткая вибрация), подожди ~10 мин и запусти аудит снова — "
+# Удержание ДОЛЬШЕ ~1 с включает экстренный вызов (SOS) — проверено на живом
+# телефоне. pymobiledevice3 сам советует 0,2 с. Безопасная альтернатива —
+# AssistiveTouch → «Аналитика».
+# Holding LONGER than ~1 s triggers Emergency SOS — verified on a live phone.
+# pymobiledevice3 itself suggests 0.2 s. Safe alternative: AssistiveTouch →
+# "Analytics".
+SYSDIAGNOSE_PRESS = ("ОДНОВРЕМЕННО коротко нажми и сразу отпусти обе кнопки громкости + "
+                     "боковую (~0,2 с, как щелчок). НЕ держи: удержание включает экстренный "
+                     "вызов! Без кнопок: Универсальный доступ → Касание → AssistiveTouch, "
+                     "в меню добавь «Аналитика» и нажми её")
+SYSDIAGNOSE_HOWTO = (f"{SYSDIAGNOSE_PRESS}; подожди ~10 мин и запусти аудит снова — "
                      "или: python3 ghost_lock/ghost_lock.py sysdiagnose")
 
 
-def _shutdown_step(crash_dir: Path, result) -> None:
+def _shutdown_step(crash_dir: Path, result) -> bool:
+    """True — shutdown.log прочитан и проверен. / True — shutdown.log was read and checked."""
     from ghost_lock.modules import shutdown_log
     rep = shutdown_log.audit_dir(crash_dir, load_iocs())
     if rep is None:
         print(dim(f"[~] sysdiagnose не найден — {SYSDIAGNOSE_HOWTO}"))
-        return
+        return False
     for good, line in rep.lines:
         mark = green("[+]") if good else (yellow("[~]") if good is None else red("[!]"))
         print(f"{mark} {line}")
     for f in rep.findings[:10]:
         print(f"    • [{f.weight}] {f.value} — {f.context}")
     result.findings.extend(rep.findings)
+    return rep.reboots > 0
 
 
 def cmd_sysdiagnose(args: argparse.Namespace) -> None:
@@ -217,7 +228,8 @@ def cmd_sysdiagnose(args: argparse.Namespace) -> None:
     if not exe:
         die("Нужен pymobiledevice3 (" + usb_profiles.INSTALL_HINT + ").\n"
             "Без него: сними sysdiagnose кнопками и запусти обычный audit — он заберёт архив.")
-    print(bold("\nСейчас на телефоне: зажми ОБЕ кнопки громкости + боковую на 1–1,5 с."))
+    print(bold("\nСейчас на телефоне:"))
+    print(f"  {SYSDIAGNOSE_PRESS}.")
     print("Телефон коротко завибрирует. Архив собирается ~5–10 минут — не отключай кабель.\n")
     step("Жду архив sysdiagnose…")
     try:
@@ -231,7 +243,11 @@ def cmd_sysdiagnose(args: argparse.Namespace) -> None:
     step("Анализ shutdown.log…")
     from ghost_lock.modules.spyware_scan import ScanResult
     res = ScanResult()
-    _shutdown_step(dest, res)
+    if not _shutdown_step(dest, res):
+        # ничего не проверено — «Чисто» здесь было бы ложью
+        # nothing was checked — "clean" would be a lie here
+        print(yellow("\n=== shutdown.log: НЕ ПРОВЕРЕНО — журнал не прочитан ==="))
+        return
     verdict_en, verdict_ru = res.verdict()
     color = {"clean": green, "suspicious": yellow, "critical": red}[verdict_en.lower()]
     print(color(f"\n=== shutdown.log: {verdict_en} / {verdict_ru} (score {res.score}) ==="))
@@ -304,11 +320,11 @@ def cmd_audit(args: argparse.Namespace) -> None:
 
     incomplete_notes: list[str] = []
 
-    step("shutdown.log из sysdiagnose (следы имплантов при перезагрузках)…")
-    _shutdown_step(Path(crash_dir), result)
-
     step("IOC-скан (домены C2, джейлбрейк-артефакты, стalkerware-профили, фишинг-эвристики)…")
     result = run_scan(info, crash_dir)
+
+    step("shutdown.log из sysdiagnose (следы имплантов при перезагрузках)…")
+    _shutdown_step(Path(crash_dir), result)
 
     # ── Deep-режим: полный бэкап + скан всего содержимого ──────────────────
     # ── Deep mode: full backup + scan of all contents ──────────────────────

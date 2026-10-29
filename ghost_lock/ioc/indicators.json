@@ -14,7 +14,8 @@
   "allowlist": [
     "/system/library/privateframeworks/pegasus\\.framework",
     "\\(pegasus \\+ \\d+\\)",
-    "/system/library/privateframeworks/pegasusjf\\.framework"
+    "/system/library/privateframeworks/pegasusjf\\.framework",
+    "/system/library/\\S*pegasus"
   ],
   "domains": [
     {

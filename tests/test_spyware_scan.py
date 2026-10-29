@@ -292,5 +292,19 @@ class TestDomainBoundaries(unittest.TestCase):
             self.assertEqual(boundary_ok(text, i, i + len("mobilesms.io"), "domain"), want, text)
 
 
+class TestAppleSystemPegasusAllowed(unittest.TestCase):
+    def test_accessibility_bundle_not_flagged(self):
+        # реальный ложняк из sysdiagnose на iOS 27 (файл DSCSYM-…)
+        # a real false positive from an iOS 27 sysdiagnose (DSCSYM-… file)
+        from ghost_lock.modules.spyware_scan import load_iocs, scan_text
+        line = "<string>/System/Library/AccessibilityBundles/Pegasus.axbundle/Pegasus</string>"
+        self.assertEqual([f for f in scan_text(load_iocs(), line, "DSCSYM-x") if f.value == "pegasus"], [])
+
+    def test_pegasus_outside_system_still_flagged(self):
+        from ghost_lock.modules.spyware_scan import load_iocs, scan_text
+        line = "/private/var/db/pegasus/agent crashed"
+        self.assertTrue([f for f in scan_text(load_iocs(), line, "x.ips") if f.value == "pegasus"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -126,8 +126,11 @@ and the log survives implant removal while keeping many reboots of history.
 ghost-lock reads only `shutdown.log` from the newest `sysdiagnose_*.tar.gz`,
 in memory, and flags such paths plus IOC process names and file paths.
 
-Take a sysdiagnose on the phone (both volume buttons + side button for
-1–1.5 s, a short vibration; it takes ~10 minutes to build). The next `audit`
+Take a sysdiagnose on the phone: **briefly press and release** both volume
+buttons + the side button together (~0.2 s, like a click; a short vibration
+confirms). **Do not hold them** — holding triggers Emergency SOS. Without
+buttons: Accessibility → Touch → AssistiveTouch, add "Analytics" to its menu
+and tap it. The archive takes ~10 minutes to build. The next `audit`
 picks it up, or pull and check it right away over the cable:
 
 ```bash
